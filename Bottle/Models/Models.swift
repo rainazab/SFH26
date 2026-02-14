@@ -425,3 +425,14 @@ extension ImpactStats {
         rankPercentile: 5
     )
 }
+
+// MARK: - SampleData (for backward compatibility)
+class SampleData {
+    static let shared = SampleData()
+    
+    let jobs = BottleJob.mockJobs
+    let collectorProfile = UserProfile.mockCollector
+    let donorProfile = UserProfile.mockDonor
+    let pickupHistory = PickupHistory.mockHistory
+    let impactStats = ImpactStats.mockStats
+}

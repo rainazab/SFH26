@@ -276,7 +276,6 @@ struct SignUpView: View {
                         // Sign up button
                         LoadingButton(
                             title: "Create Account",
-                            isLoading: $isLoading,
                             gradient: Color.brandGradient()
                         ) {
                             handleSignUp()
@@ -384,7 +383,6 @@ struct ForgotPasswordView: View {
                 
                 LoadingButton(
                     title: "Send Reset Link",
-                    isLoading: $isLoading,
                     gradient: Color.brandGradient()
                 ) {
                     handleReset()

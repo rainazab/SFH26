@@ -25,7 +25,7 @@ struct MapView: View {
     let jobs = SampleData.shared.jobs
     
     var nearestHighValueJob: BottleJob? {
-        jobs.filter({ $0.payout > 30 }).min(by: { $0.distance < $1.distance })
+        jobs.filter({ $0.payout > 30 }).min(by: { ($0.distance ?? 0) < ($1.distance ?? 0) })
     }
     
     var body: some View {
@@ -148,7 +148,7 @@ struct MapView: View {
                         HStack(spacing: 8) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundColor(.accentOrange)
-                            Text("High-value job \(String(format: "%.1f", highValueJob.distance))mi away!")
+                            Text("High-value job \(String(format: "%.1f", highValueJob.distance ?? 0))mi away!")
                                 .font(.caption)
                                 .fontWeight(.semibold)
                             Spacer()

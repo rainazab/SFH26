@@ -57,7 +57,7 @@ struct MainTabView: View {
                 .tag(4)
         }
         .accentColor(Color.brandGreen)
-        .onChange(of: selectedTab) { _ in
+        .onChange(of: selectedTab) { _, _ in
             HapticManager.shared.selection()
         }
     }

@@ -23,7 +23,7 @@ struct JobListView: View {
         jobs.filter { job in
             (selectedTier == nil || job.tier == selectedTier) &&
             job.payout >= minPayout &&
-            job.distance <= maxDistance &&
+            (job.distance ?? 0) <= maxDistance &&
             (searchText.isEmpty || job.title.localizedCaseInsensitiveContains(searchText))
         }
         .sorted { $0.payout > $1.payout }
@@ -174,7 +174,7 @@ struct JobCard: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
-                        Label(String(format: "%.1f mi", job.distance), systemImage: "location.fill")
+                        Label(String(format: "%.1f mi", job.distance ?? 0), systemImage: "location.fill")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         

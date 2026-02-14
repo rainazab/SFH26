@@ -81,7 +81,7 @@ struct JobDetailView: View {
                         // Schedule
                         InfoRow(icon: "calendar", title: "Schedule", value: job.schedule)
                         InfoRow(icon: "clock", title: "Available", value: job.availableTime)
-                        InfoRow(icon: "location", title: "Distance", value: String(format: "%.1f mi", job.distance))
+                        InfoRow(icon: "location", title: "Distance", value: String(format: "%.1f mi", job.distance ?? 0))
                         
                         if job.isRecurring {
                             HStack {
