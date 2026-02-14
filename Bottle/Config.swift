@@ -9,7 +9,8 @@ import Foundation
 
 enum Config {
     // MARK: - Firebase
-    static let firebaseAPIKey = ProcessInfo.processInfo.environment["FIREBASE_API_KEY"] ?? ""
+    // Firebase config is loaded from GoogleService-Info.plist
+    // No environment variables needed
     
     // MARK: - MongoDB Atlas
     static let mongoAppID = ProcessInfo.processInfo.environment["MONGO_APP_ID"] ?? ""
