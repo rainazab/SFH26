@@ -1,6 +1,6 @@
 //
-//  BottleApp.swift
-//  Bottle
+//  FlipApp.swift
+//  Flip
 //
 //  Created by Raina Zab on 2/13/26.
 //
@@ -8,10 +8,16 @@
 import SwiftUI
 
 @main
-struct BottleApp: App {
+struct FlipApp: App {
+    @State private var showWelcome = true
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if showWelcome {
+                WelcomeView(showWelcome: $showWelcome)
+            } else {
+                MainTabView()
+            }
         }
     }
 }
