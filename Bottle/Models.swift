@@ -1,6 +1,6 @@
 //
 //  Models.swift
-//  Flip
+//  Bottle
 //
 //  Created by Raina Zab on 2/13/26.
 //
@@ -9,16 +9,16 @@ import Foundation
 import MapKit
 
 // MARK: - User Types
-enum UserType {
+enum UserType: String, Codable {
     case donor
     case collector
 }
 
 // MARK: - Job Tier
-enum JobTier {
-    case residential // $2-10
-    case bulk // $10-30
-    case commercial // $30-100+
+enum JobTier: String, Codable {
+    case residential
+    case bulk
+    case commercial
     
     var color: String {
         switch self {
@@ -36,6 +36,265 @@ enum JobTier {
         }
     }
 }
+
+// MARK: - Job Status
+enum JobStatus: String, Codable {
+    case available
+    case claimed
+    case in_progress
+    case completed
+    case cancelled
+}
+
+// MARK: - Claim Status
+enum ClaimStatus: String, Codable {
+    case pending
+    case accepted
+    case in_progress
+    case completed
+    case disputed
+}
+
+// MARK: - MongoDB GeoJSON Point
+struct GeoLocation: Codable {
+    let type: String
+    let coordinates: [Double]  // [longitude, latitude] - ORDER MATTERS!
+    
+    init(longitude: Double, latitude: Double) {
+        self.type = "Point"
+        self.coordinates = [longitude, latitude]
+    }
+    
+    init(coordinate: CLLocationCoordinate2D) {
+        self.type = "Point"
+        self.coordinates = [coordinate.longitude, coordinate.latitude]
+    }
+    
+    var coordinate: CLLocationCoordinate2D {
+        guard coordinates.count == 2 else {
+            return CLLocationCoordinate2D(latitude: 0, longitude: 0)
+        }
+        return CLLocationCoordinate2D(latitude: coordinates[1], longitude: coordinates[0])
+    }
+    
+    var longitude: Double { coordinates[0] }
+    var latitude: Double { coordinates[1] }
+}
+
+// MARK: - Bottle Job (MongoDB-compatible)
+struct BottleJob: Codable, Identifiable {
+    let id: String
+    let donorId: String
+    let title: String
+    let location: GeoLocation
+    let address: String
+    let bottleCount: Int
+    let payout: Double
+    let tier: JobTier
+    var status: JobStatus
+    let schedule: String
+    let notes: String
+    let donorRating: Double
+    let isRecurring: Bool
+    let availableTime: String
+    var claimedBy: String?
+    let createdAt: Date
+    var distance: Double?  // Calculated field, not stored in DB
+    
+    // Convenience computed property for MapKit
+    var coordinate: CLLocationCoordinate2D {
+        location.coordinate
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case donorId = "donor_id"
+        case title
+        case location
+        case address
+        case bottleCount = "bottle_count"
+        case payout
+        case tier
+        case status
+        case schedule
+        case notes
+        case donorRating = "donor_rating"
+        case isRecurring = "is_recurring"
+        case availableTime = "available_time"
+        case claimedBy = "claimed_by"
+        case createdAt = "created_at"
+        case distance
+    }
+}
+
+// MARK: - User Profile (MongoDB-compatible)
+struct UserProfile: Codable, Identifiable {
+    let id: String
+    var name: String
+    var email: String
+    let type: UserType
+    var rating: Double
+    var totalBottles: Int
+    var totalEarnings: Double
+    let joinDate: Date
+    var badges: [Badge]
+    var fcmToken: String?
+    var profilePhotoUrl: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case name
+        case email
+        case type
+        case rating
+        case totalBottles = "total_bottles"
+        case totalEarnings = "total_earnings"
+        case joinDate = "join_date"
+        case badges
+        case fcmToken = "fcm_token"
+        case profilePhotoUrl = "profile_photo_url"
+    }
+}
+
+// MARK: - Badge
+struct Badge: Codable, Identifiable {
+    let id: String
+    let name: String
+    let icon: String
+    let description: String
+    let earnedDate: Date?
+    
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case name
+        case icon
+        case description
+        case earnedDate = "earned_date"
+    }
+}
+
+// MARK: - Claim (Pickup tracking)
+struct Claim: Codable, Identifiable {
+    let id: String
+    let jobId: String
+    let collectorId: String
+    let donorId: String
+    var status: ClaimStatus
+    let claimedAt: Date
+    var scheduledPickupTime: Date?
+    var actualPickupTime: Date?
+    var bottlesCollected: Int?
+    var aiVerifiedCount: Int?
+    let earnings: Double
+    var collectorRating: Double?
+    var donorRating: Double?
+    var photoUrl: String?
+    var completedAt: Date?
+    
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case jobId = "job_id"
+        case collectorId = "collector_id"
+        case donorId = "donor_id"
+        case status
+        case claimedAt = "claimed_at"
+        case scheduledPickupTime = "scheduled_pickup_time"
+        case actualPickupTime = "actual_pickup_time"
+        case bottlesCollected = "bottles_collected"
+        case aiVerifiedCount = "ai_verified_count"
+        case earnings
+        case collectorRating = "collector_rating"
+        case donorRating = "donor_rating"
+        case photoUrl = "photo_url"
+        case completedAt = "completed_at"
+    }
+}
+
+// MARK: - Pickup History (for display)
+struct PickupHistory: Codable, Identifiable {
+    let id: String
+    let jobTitle: String
+    let date: Date
+    let bottleCount: Int
+    let earnings: Double
+    let rating: Double
+    let review: String
+    
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case jobTitle = "job_title"
+        case date
+        case bottleCount = "bottle_count"
+        case earnings
+        case rating
+        case review
+    }
+}
+
+// MARK: - Impact Stats
+struct ImpactStats: Codable {
+    var totalBottles: Int
+    var totalEarnings: Double
+    var co2Saved: Double
+    var treesEquivalent: Int
+    var daysCarRemoved: Int
+    var daysHomePowered: Int
+    var rankPercentile: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case totalBottles = "total_bottles"
+        case totalEarnings = "total_earnings"
+        case co2Saved = "co2_saved"
+        case treesEquivalent = "trees_equivalent"
+        case daysCarRemoved = "days_car_removed"
+        case daysHomePowered = "days_home_powered"
+        case rankPercentile = "rank_percentile"
+    }
+}
+
+// MARK: - Sample Data (for fallback/demo)
+class SampleData {
+    static let shared = SampleData()
+    
+    // Keep existing sample data for fallback...
+    let jobs: [BottleJob] = []
+    let collectorProfile = UserProfile(
+        id: "sample",
+        name: "Miguel R.",
+        email: "miguel@example.com",
+        type: .collector,
+        rating: 4.8,
+        totalBottles: 3420,
+        totalEarnings: 342.0,
+        joinDate: Date().addingTimeInterval(-60*60*24*90),
+        badges: []
+    )
+    
+    let donorProfile = UserProfile(
+        id: "sample",
+        name: "Alex Chen",
+        email: "alex@example.com",
+        type: .donor,
+        rating: 4.9,
+        totalBottles: 450,
+        totalEarnings: 45.0,
+        joinDate: Date().addingTimeInterval(-60*60*24*120),
+        badges: []
+    )
+    
+    let pickupHistory: [PickupHistory] = []
+    
+    let impactStats = ImpactStats(
+        totalBottles: 3420,
+        totalEarnings: 342.0,
+        co2Saved: 156.2,
+        treesEquivalent: 7,
+        daysCarRemoved: 14,
+        daysHomePowered: 45,
+        rankPercentile: 5
+    )
+}
+
 
 // MARK: - Bottle Job
 struct BottleJob: Identifiable {
