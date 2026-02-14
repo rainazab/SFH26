@@ -43,7 +43,7 @@ struct JobDetailView: View {
                                 Text(job.title)
                                     .font(.title2)
                                     .fontWeight(.bold)
-                                Text(job.location)
+                                Text(job.address)
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }

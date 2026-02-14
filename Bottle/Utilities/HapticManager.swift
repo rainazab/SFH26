@@ -1,15 +1,19 @@
 //
 //  HapticManager.swift
-//  Flip
+//  Bottle
 //
 //  Created by Raina Zab on 2/13/26.
 //
 
 import SwiftUI
+
+#if canImport(UIKit)
 import UIKit
 
-struct HapticManager {
+class HapticManager {
     static let shared = HapticManager()
+    
+    private init() {}
     
     func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
         let generator = UIImpactFeedbackGenerator(style: style)
@@ -26,3 +30,18 @@ struct HapticManager {
         generator.selectionChanged()
     }
 }
+
+#else
+
+// Fallback for non-UIKit platforms (macOS, etc.)
+class HapticManager {
+    static let shared = HapticManager()
+    
+    private init() {}
+    
+    func impact(_ style: Int) {}
+    func notification(_ type: Int) {}
+    func selection() {}
+}
+
+#endif

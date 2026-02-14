@@ -51,7 +51,7 @@ struct ClimateImpactCalculator {
     // Compare to home energy use
     static func calculateHomeDays(co2: Double) -> Int {
         // Average US home: 4.5 metric tons CO₂/year
-        let dailyHomeEmissions = 4500 / 365  // kg/day
+        let dailyHomeEmissions = 4500.0 / 365.0  // kg/day
         return Int(co2 / dailyHomeEmissions)
     }
     

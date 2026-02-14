@@ -73,7 +73,7 @@ struct WelcomeView: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .onChange(of: currentPage) { _ in
+                .onChange(of: currentPage) { oldValue, newValue in
                     HapticManager.shared.selection()
                     isAnimating = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
