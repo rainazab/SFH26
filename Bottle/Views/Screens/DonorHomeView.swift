@@ -19,6 +19,19 @@ struct DonorHomeView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 24) {
+                    HStack {
+                        Image(systemName: "waveform.path.ecg")
+                            .foregroundColor(.brandBlueLight)
+                        Text("\(max(4287, dataService.impactStats.totalBottles + 867)) bottles diverted in SF today")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Spacer()
+                    }
+                    .padding()
+                    .background(Color.brandBlueLight.opacity(0.14))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+
                     // Hero Section
                     VStack(spacing: 12) {
                         Image(systemName: "leaf.circle.fill")

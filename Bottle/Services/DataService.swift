@@ -17,7 +17,7 @@ import FirebaseFirestore
 #endif
 
 @MainActor
-final class DataService: ObservableObject {
+final class DataService: ObservableObject, DataServiceProtocol {
     static let shared = DataService()
 
     @Published var availableJobs: [BottleJob] = []
@@ -71,15 +71,33 @@ final class DataService: ObservableObject {
 
     private func configureBackend() {
         #if canImport(FirebaseFirestore)
-        isFirestoreEnabled = true
-        backendStatus = "firestore"
-        observeJobs()
-        observePickups()
+        if AppConfig.useMockData {
+            isFirestoreEnabled = false
+            backendStatus = "mock"
+            bindFallbackState()
+        } else {
+            isFirestoreEnabled = true
+            backendStatus = "firestore"
+            observeJobs()
+            observePickups()
+        }
         #else
         isFirestoreEnabled = false
         backendStatus = "local"
         bindFallbackState()
         #endif
+    }
+
+    func refreshBackendMode() {
+        #if canImport(FirebaseFirestore)
+        jobsListener?.remove()
+        pickupsListener?.remove()
+        jobsListener = nil
+        pickupsListener = nil
+        cancellables.removeAll()
+        bindCurrentUser()
+        #endif
+        configureBackend()
     }
 
     private func bindFallbackState() {
@@ -275,6 +293,64 @@ final class DataService: ObservableObject {
             refreshDerivedCollections()
         } else {
             appState.updateLocation(userLocation)
+        }
+    }
+
+    // MARK: - Protocol convenience methods
+
+    func fetchUser(uid: String, completion: @escaping (UserProfile?) -> Void) {
+        completion(currentUser?.id == uid ? currentUser : nil)
+    }
+
+    func createUser(_ user: UserProfile, completion: @escaping (Bool) -> Void) {
+        currentUser = user
+        MockDataService.shared.syncAuthenticatedUser(user)
+        completion(true)
+    }
+
+    func fetchOpenJobs(completion: @escaping ([BottleJob]) -> Void) {
+        completion(availableJobs.filter { $0.status == .available })
+    }
+
+    func fetchUserJobs(userId: String, completion: @escaping ([BottleJob]) -> Void) {
+        completion(availableJobs.filter { $0.donorId == userId || $0.claimedBy == userId })
+    }
+
+    func acceptJob(jobId: String, collectorId: String) async throws {
+        _ = collectorId
+        guard let job = availableJobs.first(where: { $0.id == jobId }) else {
+            throw AppError.notFound
+        }
+        try await claimJob(job)
+    }
+
+    func completeJob(job: BottleJob, bottleCount: Int, proofPhotoBase64: String?) async throws {
+        try await completeJob(
+            job,
+            bottleCount: bottleCount,
+            aiVerified: AppConfig.aiVerificationEnabled,
+            proofPhotoBase64: proofPhotoBase64
+        )
+    }
+
+    func injectHighValueDemoJob() async {
+        guard let currentUser else { return }
+        let coordinate = userCoordinate ?? CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
+        try? await createJob(
+            title: "High-Value Eco Event",
+            address: "Market St, San Francisco",
+            location: GeoLocation(coordinate: coordinate),
+            bottleCount: 420,
+            schedule: "Today",
+            notes: "Injected from demo control panel",
+            isRecurring: false,
+            tier: .commercial,
+            availableTime: "Available now",
+            bottlePhotoBase64: nil,
+            locationPhotoBase64: nil
+        )
+        if currentUser.type == .collector {
+            updateJobDistances(from: coordinate)
         }
     }
 

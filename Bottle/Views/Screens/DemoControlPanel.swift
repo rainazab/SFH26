@@ -8,6 +8,10 @@ import SwiftUI
 struct DemoControlPanel: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var mockData = MockDataService.shared
+    @StateObject private var dataService = DataService.shared
+    @State private var useMockData = AppConfig.useMockData
+    @State private var aiEnabled = AppConfig.aiVerificationEnabled
+    @State private var climateAnimations = AppConfig.climateAnimationEnabled
     
     var body: some View {
         NavigationView {
@@ -50,9 +54,34 @@ struct DemoControlPanel: View {
                     Button("Reset Demo") {
                         mockData.resetDemo()
                     }
+                    Button("Inject High-Value Job") {
+                        Task { await dataService.injectHighValueDemoJob() }
+                    }
                     if mockData.currentUser.type == .donor {
                         NavigationLink("Create Listing", destination: DonorCreateJobView())
                     }
+                }
+
+                Section("Backend") {
+                    Toggle("Use Mock Data", isOn: $useMockData)
+                        .onChange(of: useMockData) { _, value in
+                            AppConfig.useMockData = value
+                            dataService.refreshBackendMode()
+                        }
+                    Text("Current: \(dataService.backendStatus)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Section("Demo Feature Toggles") {
+                    Toggle("AI Verification Enabled", isOn: $aiEnabled)
+                        .onChange(of: aiEnabled) { _, value in
+                            AppConfig.aiVerificationEnabled = value
+                        }
+                    Toggle("Climate Animations", isOn: $climateAnimations)
+                        .onChange(of: climateAnimations) { _, value in
+                            AppConfig.climateAnimationEnabled = value
+                        }
                 }
             }
             .navigationTitle("Demo Controls")

@@ -11,8 +11,8 @@ struct ClimateImpactCalculator {
     // MARK: - Research-Based Constants
     // California CRV Program Data + EPA Statistics
     
-    static let co2PerBottle: Double = 0.045  // kg CO₂ saved per bottle recycled
-    static let co2PerTree: Double = 22.0     // kg CO₂ absorbed per tree per year (EPA)
+    static let co2PerBottle: Double = 0.1    // kg CO₂ saved per bottle recycled (EPA-aligned simplification)
+    static let co2PerTree: Double = 21.77    // kg CO₂ absorbed per tree per year
     static let waterPerBottle: Double = 0.5  // gallons water saved (PET bottle production)
     static let wastePerBottle: Double = 0.025  // kg waste avoided per bottle
     
@@ -37,6 +37,15 @@ struct ClimateImpactCalculator {
             daysCarRemoved: daysCarRemoved,
             daysHomePowered: homePowerDays
         )
+    }
+
+    // MARK: - Public KPI helpers used by UI
+    static func co2Saved(bottles: Int) -> Double {
+        Double(bottles) * co2PerBottle
+    }
+
+    static func treesEquivalent(co2Kg: Double) -> Double {
+        co2Kg / co2PerTree
     }
     
     // MARK: - Comparison Calculations

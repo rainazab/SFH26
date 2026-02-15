@@ -26,6 +26,8 @@ struct CompletePickupView: View {
     @State private var aiCount: Int?
     @State private var aiConfidence: Int?
     @State private var aiNotes: String?
+    @State private var aiEstimatedCRV: Double?
+    @State private var aiIsRecyclable: Bool?
     @State private var isCountingWithAI = false
     
     private let geminiService = GeminiService()
@@ -83,6 +85,16 @@ struct CompletePickupView: View {
                             Text("AI Detected: \(aiCount) bottles (\(aiConfidence)% confidence)")
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
+                            if let aiEstimatedCRV {
+                                Text("AI est. CRV value: $\(String(format: "%.2f", aiEstimatedCRV))")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            if let aiIsRecyclable {
+                                Text(aiIsRecyclable ? "Likely CRV-eligible recyclables" : "Mixed/non-CRV materials detected")
+                                    .font(.caption)
+                                    .foregroundColor(aiIsRecyclable ? .green : .orange)
+                            }
                             if let aiNotes {
                                 Text(aiNotes)
                                     .font(.caption)
@@ -166,15 +178,24 @@ struct CompletePickupView: View {
     }
     
     private func runAICount(_ image: UIImage) async {
+        guard AppConfig.aiVerificationEnabled else { return }
         isCountingWithAI = true
         defer { isCountingWithAI = false }
         do {
-            let result = try await geminiService.countBottles(from: image)
-            aiCount = result.count
-            aiConfidence = result.confidence
-            aiNotes = result.notes
-            if result.confidence >= 80 {
-                bottleCount = "\(result.count)"
+            async let countTask = geminiService.countBottles(from: image)
+            async let classifyTask = geminiService.classifyRecyclability(from: image)
+            let countResult = try await countTask
+            let classifyResult = try await classifyTask
+
+            aiCount = countResult.count
+            aiConfidence = countResult.confidence
+            aiNotes = classifyResult.summary
+            aiEstimatedCRV = classifyResult.estimatedValue
+            aiIsRecyclable = classifyResult.isRecyclable
+
+            // AI-first flow: auto-fill from Gemini unless confidence is too low.
+            if countResult.confidence >= 60 {
+                bottleCount = "\(countResult.count)"
             }
         } catch {
             // AI optional in demo flow
