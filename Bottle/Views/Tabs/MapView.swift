@@ -23,6 +23,7 @@ struct MapView: View {
     @State private var isPulsing = true
     @State private var todayCO2: Double = 0
     @State private var showNewJobToast = false
+    @State private var hasAutoFramed = false
 
     private var jobs: [BottleJob] { dataService.availableJobs }
     
@@ -251,6 +252,7 @@ struct MapView: View {
                     )
                 )
             }
+            autoFramePostsIfNeeded(force: true)
             let todayBottles = dataService.completedJobs.filter {
                 Calendar.current.isDateInToday($0.date)
             }.reduce(0) { $0 + $1.bottleCount }
@@ -271,7 +273,11 @@ struct MapView: View {
                     span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
                 )
                 position = .region(region)
+                autoFramePostsIfNeeded(force: false)
             }
+        }
+        .onChange(of: jobs.map(\.id)) { _, _ in
+            autoFramePostsIfNeeded(force: false)
         }
     }
     
@@ -281,6 +287,29 @@ struct MapView: View {
         case .bulk: return .tierBulk
         case .commercial: return .tierCommercial
         }
+    }
+
+    private func autoFramePostsIfNeeded(force: Bool) {
+        guard force || !hasAutoFramed else { return }
+        guard !jobs.isEmpty else { return }
+
+        var rect = MKMapRect.null
+        for post in jobs.prefix(30) {
+            let point = MKMapPoint(post.coordinate)
+            let tiny = MKMapRect(x: point.x, y: point.y, width: 1, height: 1)
+            rect = rect.isNull ? tiny : rect.union(tiny)
+        }
+
+        if let user = locationService.userLocation?.coordinate {
+            let userPoint = MKMapPoint(user)
+            let tiny = MKMapRect(x: userPoint.x, y: userPoint.y, width: 1, height: 1)
+            rect = rect.union(tiny)
+        }
+
+        guard !rect.isNull else { return }
+        let padded = rect.insetBy(dx: -rect.size.width * 0.35 - 800, dy: -rect.size.height * 0.35 - 800)
+        position = .rect(padded)
+        hasAutoFramed = true
     }
 }
 

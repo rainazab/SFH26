@@ -46,9 +46,11 @@ final class DataService: ObservableObject, DataServiceProtocol {
     var canClaimNewJob: Bool { !hasActiveJob }
 
     private let appState = MockDataService.shared
+    private let notifications = AppNotificationService.shared
     private var cancellables: Set<AnyCancellable> = []
     private var userCoordinate: CLLocationCoordinate2D?
     private var isFirestoreEnabled = false
+    private var didProcessInitialJobsSnapshot = false
 
     #if canImport(FirebaseFirestore)
     private let db = Firestore.firestore()
@@ -64,6 +66,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
 
     private init() {
         loadPersistedWallet()
+        notifications.requestPermissionIfNeeded()
         bindCurrentUser()
         configureBackend()
     }
@@ -114,6 +117,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
         pickupsListener = nil
         usersListener = nil
         cityImpactListener = nil
+        didProcessInitialJobsSnapshot = false
         cancellables.removeAll()
         bindCurrentUser()
         #endif
@@ -205,6 +209,34 @@ final class DataService: ObservableObject, DataServiceProtocol {
         platformStats.totalCO2Saved = ClimateImpactCalculator.co2Saved(bottles: totalBottles)
         platformStats.totalJobsCompleted = max(completedJobs.count, activityTimeline.filter { $0.type == .pickupCompleted }.count)
         platformStats.totalActiveUsers = max(leaderboardUsers.count, currentUser == nil ? 0 : 1)
+    }
+
+    private func handleRealtimePostNotifications(previous: [BottleJob], current: [BottleJob]) {
+        guard let user = currentUser else { return }
+
+        let previousIDs = Set(previous.map(\.id))
+        let currentIDs = Set(current.map(\.id))
+        let addedIDs = currentIDs.subtracting(previousIDs)
+
+        if user.type == .collector && !addedIDs.isEmpty {
+            notifications.notifyNewPostNearby(count: addedIDs.count)
+        }
+
+        if user.type == .donor {
+            let prevClaimed = Set(previous.filter { $0.donorId == user.id && $0.status == .claimed }.map(\.id))
+            let currClaimed = Set(current.filter { $0.donorId == user.id && $0.status == .claimed }.map(\.id))
+            let newlyClaimed = currClaimed.subtracting(prevClaimed)
+            if !newlyClaimed.isEmpty {
+                notifications.notifyPostPickedUp()
+            }
+
+            let prevMyPostIDs = Set(previous.filter { $0.donorId == user.id }.map(\.id))
+            let currMyPostIDs = Set(current.filter { $0.donorId == user.id }.map(\.id))
+            let removedMyPosts = prevMyPostIDs.subtracting(currMyPostIDs)
+            if !removedMyPosts.isEmpty && !prevClaimed.isDisjoint(with: removedMyPosts) {
+                notifications.notifyPostCompleted()
+            }
+        }
     }
 
     private func isTransitionAllowed(from: JobStatus, to: JobStatus) -> Bool {
@@ -576,11 +608,18 @@ private extension DataService {
                 if let userCoordinate = self.userCoordinate {
                     parsed = self.withDistances(parsed, from: userCoordinate)
                 }
-                self.availableJobs = parsed.filter {
+                let previousJobs = self.availableJobs
+                let filtered = parsed.filter {
                     $0.status != .completed &&
                     $0.status != .cancelled &&
                     $0.status != .expired &&
                     (($0.expiresAt ?? now.addingTimeInterval(1)) > now)
+                }
+                self.availableJobs = filtered
+                if self.didProcessInitialJobsSnapshot {
+                    self.handleRealtimePostNotifications(previous: previousJobs, current: filtered)
+                } else {
+                    self.didProcessInitialJobsSnapshot = true
                 }
                 self.refreshDerivedCollections()
                 self.lastSyncError = nil

@@ -17,7 +17,7 @@ struct DonorHomeView: View {
                     NavigationLink(destination: DonorCreateJobView()) {
                         HStack {
                             Image(systemName: "plus.circle.fill")
-                            Text("Schedule Pickup")
+                            Text("Post Bottles")
                                 .fontWeight(.semibold)
                         }
                         .frame(maxWidth: .infinity)
@@ -30,7 +30,7 @@ struct DonorHomeView: View {
                     .padding(.top, 12)
 
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("NEXT PICKUP")
+                        Text("ACTIVE POST")
                             .font(.caption)
                             .foregroundColor(.secondary)
 

@@ -12,7 +12,6 @@ struct MainTabView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var locationService: LocationService
     @StateObject private var dataService = DataService.shared
-    @State private var selectedTab = 0
     @State private var showLocationPrompt = false
     
     private var userType: UserType {
@@ -20,48 +19,14 @@ struct MainTabView: View {
     }
     
     var body: some View {
-        TabView(selection: $selectedTab) {
+        Group {
             if userType == .donor {
-                DonorHomeView()
-                    .tabItem {
-                        Label("Home", systemImage: "house.fill")
-                    }
-                    .tag(0)
-
-                ActivityView()
-                    .tabItem {
-                        Label("History", systemImage: "clock.fill")
-                    }
-                    .tag(1)
-
-                ProfileView()
-                    .tabItem {
-                        Label("Profile", systemImage: "person.fill")
-                    }
-                    .tag(2)
+                DonorTabView(locationService: locationService)
+                    .environmentObject(authService)
             } else {
-                JobListView()
-                    .tabItem {
-                        Label("Posts", systemImage: "list.bullet")
-                    }
-                    .tag(0)
-
-                ActivityView()
-                    .tabItem {
-                        Label("Active", systemImage: "clock.fill")
-                    }
-                    .tag(1)
-
-                ProfileView()
-                    .tabItem {
-                        Label("Profile", systemImage: "person.fill")
-                    }
-                    .tag(2)
+                CollectorTabView(locationService: locationService)
+                    .environmentObject(authService)
             }
-        }
-        .accentColor(Color.brandGreen)
-        .onChange(of: selectedTab) { _, _ in
-            HapticManager.shared.selection()
         }
         .onAppear {
             if locationService.authorizationStatus == .notDetermined {
@@ -87,6 +52,98 @@ struct MainTabView: View {
             }
         } message: {
             Text("bottlr uses your location to show nearby posts and sort pickups around you.")
+        }
+    }
+}
+
+struct DonorTabView: View {
+    @EnvironmentObject var authService: AuthService
+    @StateObject private var dataService = DataService.shared
+    @State private var selectedTab = 0
+    let locationService: LocationService
+
+    var body: some View {
+        TabView(selection: $selectedTab) {
+            DonorHomeView()
+                .tabItem { Label("Home", systemImage: "house.fill") }
+                .tag(0)
+
+            ActivityView()
+                .tabItem { Label("History", systemImage: "clock.fill") }
+                .tag(1)
+
+            DonorMapView()
+                .environmentObject(locationService)
+                .tabItem { Label("Map", systemImage: "map.fill") }
+                .tag(2)
+
+            ProfileView()
+                .environmentObject(authService)
+                .tabItem { Label("Profile", systemImage: "person.fill") }
+                .tag(3)
+        }
+        .accentColor(.brandGreen)
+        .onChange(of: selectedTab) { _, _ in
+            HapticManager.shared.selection()
+        }
+    }
+}
+
+struct CollectorTabView: View {
+    @EnvironmentObject var authService: AuthService
+    @State private var selectedTab = 0
+    let locationService: LocationService
+
+    var body: some View {
+        TabView(selection: $selectedTab) {
+            CollectorJobsView()
+                .environmentObject(locationService)
+                .tabItem { Label("Jobs", systemImage: "briefcase.fill") }
+                .tag(0)
+
+            ActivityView()
+                .tabItem { Label("Active", systemImage: "clock.fill") }
+                .tag(1)
+
+            ProfileView()
+                .environmentObject(authService)
+                .tabItem { Label("Profile", systemImage: "person.fill") }
+                .tag(2)
+        }
+        .accentColor(.brandGreen)
+        .onChange(of: selectedTab) { _, _ in
+            HapticManager.shared.selection()
+        }
+    }
+}
+
+struct CollectorJobsView: View {
+    @EnvironmentObject var locationService: LocationService
+    @State private var mode: JobsMode = .map
+
+    enum JobsMode: String, CaseIterable {
+        case map = "Map"
+        case list = "List"
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Picker("View", selection: $mode) {
+                ForEach(JobsMode.allCases, id: \.self) { option in
+                    Text(option.rawValue).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.top, 8)
+
+            if mode == .map {
+                MapView()
+                    .environmentObject(locationService)
+            } else {
+                JobListView()
+                    .environmentObject(locationService)
+            }
         }
     }
 }
