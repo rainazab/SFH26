@@ -102,45 +102,6 @@ struct MapView: View {
             }
             .ignoresSafeArea()
             
-            // Top Header
-            VStack {
-                HStack {
-                    Button {
-                        onShowList?()
-                    } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Nearby Posts")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                            Text("\(jobs.count) posts nearby")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("View nearby posts in list")
-                    Spacer()
-                    
-                    // List Button
-                    Button {
-                        onShowList?()
-                    } label: {
-                        Image(systemName: "list.bullet")
-                            .font(.title2)
-                            .foregroundColor(Color.brandGreen)
-                    }
-                    .accessibilityLabel("Open list view")
-                }
-                .padding()
-                .background(.ultraThinMaterial)
-                .cornerRadius(15)
-                .shadow(color: Color.black.opacity(0.1), radius: 8)
-                .padding()
-                
-                Spacer()
-            }
-            
             // Bottom Stats Card
             VStack {
                 Spacer()

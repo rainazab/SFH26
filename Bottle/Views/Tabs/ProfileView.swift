@@ -29,7 +29,7 @@ struct ProfileView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 16) {
                     // Profile Header
                     VStack(spacing: 16) {
                         // Avatar
@@ -135,11 +135,10 @@ struct ProfileView: View {
                             ProfileStatPill(value: "\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: profile.totalBottles)))kg", label: "CO₂ Saved")
                         }
                     }
-                    .padding()
+                    .padding(18)
                     .background(Color(.systemBackground))
-                    .cornerRadius(20)
+                    .cornerRadius(16)
                     .shadow(color: Color.black.opacity(0.05), radius: 8)
-                    .padding(.horizontal)
 
                     VStack(alignment: .leading, spacing: 10) {
                         Text("ACTIVITY TIMELINE")
@@ -147,9 +146,13 @@ struct ProfileView: View {
                             .foregroundColor(.secondary)
 
                         if dataService.activityTimeline.isEmpty {
-                            Text("No activity yet.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            HStack(spacing: 8) {
+                                Image(systemName: "clock")
+                                    .foregroundColor(.secondary)
+                                Text("No activity yet.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         } else {
                             ForEach(Array(dataService.activityTimeline.prefix(6))) { event in
                                 HStack(alignment: .top, spacing: 10) {
@@ -181,11 +184,9 @@ struct ProfileView: View {
                             }
                         }
                     }
-                    .padding()
+                    .padding(14)
                     .background(Color(.systemBackground))
                     .cornerRadius(12)
-                    .padding(.horizontal)
-                    .padding(.top)
                     
                     // Menu Items
                     VStack(spacing: 0) {
@@ -210,18 +211,8 @@ struct ProfileView: View {
                         }
                     }
                     .background(Color(.systemBackground))
-                    .cornerRadius(20)
+                    .cornerRadius(16)
                     .shadow(color: Color.black.opacity(0.05), radius: 8)
-                    .padding(.horizontal)
-
-                    #if DEBUG
-                    Button("Open Demo Controls") {
-                        showDemoPanel = true
-                    }
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .padding(.horizontal)
-                    #endif
                     
                     // App Info
                     VStack(spacing: 8) {
@@ -245,7 +236,10 @@ struct ProfileView: View {
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
-                    .padding()
+                    .padding(14)
+                    .frame(maxWidth: .infinity)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(12)
                     
                     // Sign Out
                     Button(action: {
@@ -263,11 +257,11 @@ struct ProfileView: View {
                             .background(Color.red.opacity(0.1))
                             .cornerRadius(15)
                     }
-                    .padding(.horizontal)
                     
                     Spacer(minLength: 20)
                 }
-                .padding(.vertical)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
             }
             .navigationTitle("Profile")
             .background(Color(.systemGray6))
@@ -342,34 +336,6 @@ struct ProfileStatPill: View {
         .padding(.vertical, 12)
         .background(Color(.systemGray6))
         .cornerRadius(10)
-    }
-}
-
-struct ProfileMenuItem: View {
-    let icon: String
-    let title: String
-    let color: Color
-    
-    var body: some View {
-        Button(action: {}) {
-            HStack(spacing: 16) {
-                Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundColor(color)
-                    .frame(width: 30)
-                
-                Text(title)
-                    .font(.body)
-                    .foregroundColor(.primary)
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding()
-        }
     }
 }
 
@@ -562,30 +528,6 @@ struct FAQRow: View {
             Text(answer)
                 .font(.caption)
                 .foregroundColor(.secondary)
-        }
-    }
-}
-
-struct AboutRow: View {
-    let icon: String
-    let title: String
-    let description: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(Color.brandGreen)
-                .frame(width: 30)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                Text(description)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
         }
     }
 }

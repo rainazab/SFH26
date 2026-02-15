@@ -285,34 +285,36 @@ struct JobCard: View {
     let onClaim: () -> Void
     
     var body: some View {
-            VStack(spacing: 12) {
-            HStack(spacing: 16) {
+        VStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 if let bottlePreview = bottlePreview {
                     Image(uiImage: bottlePreview)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 60, height: 60)
+                        .frame(width: 56, height: 56)
                         .clipped()
-                        .cornerRadius(12)
+                        .cornerRadius(10)
                 }
 
                 // Icon
                 ZStack {
                     Circle()
                         .fill(tierColor(job.tier).opacity(0.15))
-                        .frame(width: 60, height: 60)
+                        .frame(width: 56, height: 56)
                     
                     Image(systemName: job.tier.icon)
-                        .font(.title2)
+                        .font(.title3)
                         .foregroundColor(tierColor(job.tier))
                 }
                 
                 // Info
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 7) {
                     HStack {
                         Text(job.title)
                             .font(.headline)
                             .fontWeight(.bold)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
                         
                         if job.isRecurring {
                             Image(systemName: "repeat.circle.fill")
@@ -321,22 +323,14 @@ struct JobCard: View {
                         }
                     }
                     
-                    HStack(spacing: 12) {
-                        Label("\(job.bottleCount)", systemImage: "cylinder.fill")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        Label(String(format: "%.1f mi", job.distance ?? 0), systemImage: "location.fill")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        Label(String(format: "%.1f", job.donorRating), systemImage: "star.fill")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    HStack(spacing: 6) {
+                        InfoChip(text: "\(job.bottleCount) bottles")
+                        InfoChip(text: String(format: "%.1f mi", job.distance ?? 0))
+                        InfoChip(text: String(format: "%.1f ★", job.donorRating))
                     }
                     
                     Text(job.availableTime)
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundColor(.secondary)
                     if let expiresAt = job.expiresAt {
                         Text("Expires \(expiresAt.formatted(date: .omitted, time: .shortened))")
@@ -346,25 +340,32 @@ struct JobCard: View {
                 }
                 
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
                 
                 // Impact snapshot
-                VStack(spacing: 4) {
+                VStack(alignment: .trailing, spacing: 4) {
                     Text("\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: job.bottleCount)))kg")
-                        .font(.headline)
+                        .font(.subheadline)
                         .fontWeight(.bold)
                         .foregroundColor(Color.brandBlueLight)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                     Text("CO₂ impact")
                         .font(.caption2)
                         .foregroundColor(.secondary)
+                        .lineLimit(1)
                     if job.demandMultiplier > 1.0 {
                         Text("+\(Int((job.demandMultiplier - 1.0) * 100))% demand")
                             .font(.caption2)
                             .foregroundColor(.brandBlueLight)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                     }
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 2)
                 }
+                .frame(width: 90, alignment: .trailing)
             }
             
             Button(action: onClaim) {
@@ -379,11 +380,11 @@ struct JobCard: View {
             }
             .disabled(!canClaim)
             .accessibilityLabel("Claim this post")
-            }
-            .padding()
-            .background(Color(.systemBackground))
-            .cornerRadius(15)
-            .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 2)
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(15)
+        .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 2)
     }
     
     func tierColor(_ tier: JobTier) -> Color {
@@ -398,6 +399,22 @@ struct JobCard: View {
         guard let base64 = job.bottlePhotoBase64,
               let data = Data(base64Encoded: base64) else { return nil }
         return UIImage(data: data)
+    }
+}
+
+struct InfoChip: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption2)
+            .foregroundColor(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color(.systemGray6))
+            .cornerRadius(7)
     }
 }
 
