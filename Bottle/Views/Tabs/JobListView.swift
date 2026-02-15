@@ -14,11 +14,17 @@ struct JobListView: View {
     @State private var searchText = ""
     @State private var selectedTier: JobTier? = nil
     @State private var showingFilters = false
+    @State private var hideActiveBanner = false
     @State private var minEstimatedValue = 0.0
     @State private var maxDistance = 10.0
     @State private var selectedJob: BottleJob?
     @State private var showingJobDetail = false
-    @Environment(\.colorScheme) var colorScheme
+    @State private var claimCandidate: BottleJob?
+    @State private var isClaiming = false
+    @State private var showClaimError = false
+    @State private var claimErrorMessage = ""
+    @State private var activeClaimedJob: BottleJob?
+    @State private var showActivePickupSheet = false
     
     private var baseJobs: [BottleJob] {
         if dataService.currentUser?.type == .collector {
@@ -40,19 +46,42 @@ struct JobListView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                if dataService.hasActiveJob {
-                    Text("Complete your current pickup before claiming another post.")
+                if dataService.hasActiveJob && !hideActiveBanner {
+                    HStack(spacing: 10) {
+                        Text("Complete your active pickup before claiming another post.")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                            .lineLimit(2)
+                        Spacer()
+                        Button("View Active") {
+                            activeClaimedJob = dataService.myClaimedJobs.first
+                            showActivePickupSheet = activeClaimedJob != nil
+                        }
                         .font(.caption)
+                        .fontWeight(.semibold)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.white.opacity(0.25))
                         .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(Color.orange)
+                        .cornerRadius(8)
+                        Button {
+                            hideActiveBanner = true
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.caption2)
+                                .foregroundColor(.white.opacity(0.9))
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.orange)
                 }
 
                 // Stats Header
                 HStack(spacing: 20) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Active Impact Opportunities")
+                        Text("Collection Points Nearby")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Text("\(filteredJobs.count)")
@@ -131,19 +160,27 @@ struct JobListView: View {
                 // Job List
                 ScrollView {
                     LazyVStack(spacing: 12) {
-                        ForEach(filteredJobs) { job in
-                            JobCard(
-                                job: job,
-                                canClaim: dataService.canClaimNewJob
+                        if filteredJobs.isEmpty {
+                            JobsEmptyStateView(
+                                icon: "mappin.slash.circle",
+                                title: "No posts found",
+                                message: "Try widening your distance filter or clearing search."
                             ) {
-                                Task {
-                                    try? await dataService.claimJob(job)
-                                }
+                                showingFilters = true
                             }
-                                .onTapGesture {
-                                    selectedJob = job
-                                    showingJobDetail = true
+                        } else {
+                            ForEach(filteredJobs) { job in
+                                JobCard(
+                                    job: job,
+                                    canClaim: dataService.canClaimNewJob
+                                ) {
+                                    claimCandidate = job
                                 }
+                                    .onTapGesture {
+                                        selectedJob = job
+                                        showingJobDetail = true
+                                    }
+                            }
                         }
                     }
                     .padding()
@@ -160,6 +197,49 @@ struct JobListView: View {
                         .environmentObject(locationService)
                 }
             }
+            .sheet(isPresented: $showActivePickupSheet) {
+                if let activeClaimedJob {
+                    CompletePickupView(job: activeClaimedJob)
+                }
+            }
+            .alert("Claim this collection?", isPresented: Binding(
+                get: { claimCandidate != nil },
+                set: { if !$0 { claimCandidate = nil } }
+            )) {
+                Button("Cancel", role: .cancel) {
+                    claimCandidate = nil
+                }
+                Button("Claim") {
+                    handleClaim()
+                }
+                .disabled(isClaiming)
+            } message: {
+                if let claimCandidate {
+                    Text("Claim \(claimCandidate.bottleCount) bottles at \(claimCandidate.address)?")
+                } else {
+                    Text("Claim this collection?")
+                }
+            }
+            .alert("Could not claim post", isPresented: $showClaimError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(claimErrorMessage)
+            }
+        }
+    }
+
+    private func handleClaim() {
+        guard let claimCandidate else { return }
+        isClaiming = true
+        Task {
+            do {
+                try await dataService.claimJob(claimCandidate)
+            } catch {
+                claimErrorMessage = error.localizedDescription
+                showClaimError = true
+            }
+            self.claimCandidate = nil
+            isClaiming = false
         }
     }
 }
@@ -231,6 +311,9 @@ struct JobCard: View {
                 }
                 
                 Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
                 
                 // Impact snapshot
                 VStack(spacing: 4) {
@@ -253,7 +336,7 @@ struct JobCard: View {
             }
             
             Button(action: onClaim) {
-                Text("Claim Post")
+                Text("Claim Collection Point")
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
@@ -263,6 +346,7 @@ struct JobCard: View {
                     .cornerRadius(10)
             }
             .disabled(!canClaim)
+            .accessibilityLabel("Claim this post")
             }
             .padding()
             .background(Color(.systemBackground))
@@ -347,6 +431,38 @@ struct FiltersView: View {
                 }
             }
         }
+    }
+}
+
+struct JobsEmptyStateView: View {
+    let icon: String
+    let title: String
+    let message: String
+    let action: () -> Void
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 44))
+                .foregroundColor(.secondary)
+            Text(title)
+                .font(.headline)
+            Text(message)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 20)
+            Button("Adjust Filters", action: action)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Color.brandGreen)
+                .foregroundColor(.white)
+                .cornerRadius(10)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
     }
 }
 

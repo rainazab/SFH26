@@ -223,7 +223,7 @@ struct DonorCreateJobView: View {
             .alert("Listing posted", isPresented: $showPostedSuccess) {
                 Button("Done") { dismiss() }
             } message: {
-                Text("Your impact request is now visible to nearby collectors.")
+                Text("Your collection point request is now visible to nearby collectors.")
             }
             .sheet(isPresented: $showLocationSearchSheet) {
                 LocationSearchView(selectedLocation: $selectedLocationResult)

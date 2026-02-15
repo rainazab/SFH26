@@ -218,7 +218,7 @@ struct JobDetailView: View {
                                     } else {
                                         Image(systemName: "checkmark.circle.fill")
                                     }
-                                    Text(isClaiming ? "Claiming..." : "Claim Impact Post")
+                                    Text(isClaiming ? "Claiming..." : "Claim This Collection")
                                         .fontWeight(.semibold)
                                 }
                                 .frame(maxWidth: .infinity)
@@ -277,7 +277,7 @@ struct JobDetailView: View {
                 }
             }
         }
-        .alert("Post Claimed!", isPresented: $showingClaimSuccess) {
+        .alert("Collection Point Claimed!", isPresented: $showingClaimSuccess) {
             Button("OK") {
                 dismiss()
             }

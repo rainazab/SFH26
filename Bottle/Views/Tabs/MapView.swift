@@ -162,7 +162,7 @@ struct MapView: View {
                         HStack(spacing: 8) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundColor(.accentOrange)
-                            Text("High-impact post \(String(format: "%.1f", highValueJob.distance ?? 0)) mi away!")
+                            Text("Collection point \(String(format: "%.1f", highValueJob.distance ?? 0)) mi away!")
                                 .font(.caption)
                                 .fontWeight(.semibold)
                             Spacer()
