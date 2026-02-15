@@ -16,7 +16,7 @@ struct JobListView: View {
     @State private var showingFilters = false
     @State private var hideActiveBanner = false
     @State private var minBottleCount = 0.0
-    @State private var maxDistance = 10.0
+    @State private var maxDistance = 100.0
     @State private var selectedJob: BottleJob?
     @State private var showingJobDetail = false
     @State private var claimCandidate: BottleJob?
@@ -260,7 +260,7 @@ struct JobListView: View {
             searchText.isEmpty &&
             selectedTier == nil &&
             minBottleCount == 0 &&
-            maxDistance == 10
+            maxDistance == 100
     }
 
     private func handleClaim() {
@@ -442,14 +442,14 @@ struct FiltersView: View {
                     HStack {
                         Text("\(String(format: "%.1f", maxDistance)) mi")
                             .fontWeight(.semibold)
-                        Slider(value: $maxDistance, in: 0.5...25, step: 0.5)
+                        Slider(value: $maxDistance, in: 0.5...100, step: 0.5)
                     }
                 }
                 
                 Section {
                     Button("Reset Filters") {
                         minBottleCount = 0
-                        maxDistance = 10
+                        maxDistance = 100
                     }
                 }
             }

@@ -113,8 +113,8 @@ struct BottleApp: App {
             .onAppear {
                 dataService.syncAuthenticatedUser(authService.currentUser)
             }
-            .onChange(of: authService.currentUser?.id) { _, _ in
-                dataService.syncAuthenticatedUser(authService.currentUser)
+            .onReceive(authService.$currentUser) { user in
+                dataService.syncAuthenticatedUser(user)
             }
             .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
                 if !isAuthenticated {

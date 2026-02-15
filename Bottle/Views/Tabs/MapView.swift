@@ -34,9 +34,9 @@ struct MapView: View {
         return dataService.availableJobs
     }
     
-    var nearestHighValueJob: BottleJob? {
+    var closestCollectionPoint: BottleJob? {
         jobs
-            .filter { $0.estimatedValue > 30 && $0.status == .available && $0.distance != nil }
+            .filter { $0.status == .available && $0.distance != nil }
             .min(by: { ($0.distance ?? .greatestFiniteMagnitude) < ($1.distance ?? .greatestFiniteMagnitude) })
     }
 
@@ -187,20 +187,28 @@ struct MapView: View {
                         }
                     }
                     
-                    // Urgency alert for nearby high-value job
-                    if let highValueJob = nearestHighValueJob, let distance = highValueJob.distance {
-                        Divider()
-                        
-                        HStack(spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.accentOrange)
-                            Text("Collection point \(String(format: "%.1f", distance)) mi away!")
+                    Divider()
+                    
+                    // Quick Stats
+                    HStack(spacing: 20) {
+                        StatBadge(icon: "checkmark.circle.fill", value: completedCount, label: "Completed")
+                        StatBadge(icon: "clock.fill", value: pendingCount, label: "Pending")
+                        StatBadge(icon: "arrow.up.circle.fill", value: currentRating, label: "Rating")
+                    }
+                    
+                    Divider()
+                    
+                    HStack(spacing: 8) {
+                        Image(systemName: "location.fill")
+                            .foregroundColor(.accentOrange)
+                        if let closest = closestCollectionPoint, let distance = closest.distance {
+                            Text("Closest collection point is \(String(format: "%.1f", distance)) mi away")
                                 .font(.caption)
                                 .fontWeight(.semibold)
                             Spacer()
                             Button(action: {
                                 HapticManager.shared.impact(.medium)
-                                openCollectionPoint(highValueJob)
+                                openCollectionPoint(closest)
                             }) {
                                 Text("GO")
                                     .font(.caption)
@@ -211,21 +219,28 @@ struct MapView: View {
                                     .background(Color.accentOrange)
                                     .cornerRadius(8)
                             }
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color.accentOrange.opacity(0.15))
-                        .cornerRadius(10)
-                    } else {
-                        Divider()
-                        
-                        // Quick Stats
-                        HStack(spacing: 20) {
-                            StatBadge(icon: "checkmark.circle.fill", value: completedCount, label: "Completed")
-                            StatBadge(icon: "clock.fill", value: pendingCount, label: "Pending")
-                            StatBadge(icon: "arrow.up.circle.fill", value: currentRating, label: "Rating")
+                        } else {
+                            Text("No collection points available")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                            Spacer()
+                            Button(action: {}) {
+                                Text("GO")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white.opacity(0.8))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.gray)
+                                    .cornerRadius(8)
+                            }
+                            .disabled(true)
                         }
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.accentOrange.opacity(0.15))
+                    .cornerRadius(10)
                 }
                 .padding()
                 .background(.ultraThinMaterial)
@@ -369,21 +384,18 @@ struct MapView: View {
     }
 
     private func openCollectionPoint(_ job: BottleJob) {
-        selectedJob = job
         position = .region(
             MKCoordinateRegion(
                 center: job.coordinate,
                 span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
             )
         )
-        // Re-trigger sheet presentation even if already open.
         if showingJobDetail {
             showingJobDetail = false
-            DispatchQueue.main.async {
-                selectedJob = job
-                showingJobDetail = true
-            }
-        } else {
+        }
+        selectedJob = nil
+        DispatchQueue.main.async {
+            selectedJob = job
             showingJobDetail = true
         }
     }
