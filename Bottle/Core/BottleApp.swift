@@ -8,10 +8,11 @@
 import SwiftUI
 import FirebaseCore
 import FirebaseAuth
+import UserNotifications
 
 // MARK: - App Delegate for Firebase
 
-class AppDelegate: NSObject, UIApplicationDelegate {
+class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
         // Configure Firebase
@@ -19,6 +20,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         
         // Required for Firebase Phone Auth verification (silent APNs flow).
         application.registerForRemoteNotifications()
+        UNUserNotificationCenter.current().delegate = self
         
         // Validate API keys on launch
         let missingKeys = Config.validateConfiguration()
@@ -58,6 +60,21 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             return true
         }
         return false
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound])
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        if let postId = response.notification.request.content.userInfo[AppNotificationService.postIDUserInfoKey] as? String {
+            AppNotificationService.shared.routeToCollectionPoint(postId: postId)
+        }
+        completionHandler()
     }
 }
 

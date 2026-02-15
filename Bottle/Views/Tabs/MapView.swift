@@ -24,6 +24,7 @@ struct MapView: View {
     @State private var todayCO2: Double = 0
     @State private var showNewJobToast = false
     @State private var hasAutoFramed = false
+    @State private var toastPostID: String?
 
     private var jobs: [BottleJob] {
         if dataService.currentUser?.type == .collector {
@@ -34,6 +35,11 @@ struct MapView: View {
     
     var nearestHighValueJob: BottleJob? {
         jobs.filter({ $0.estimatedValue > 30 }).min(by: { ($0.distance ?? 0) < ($1.distance ?? 0) })
+    }
+
+    private var toastTitle: String {
+        let count = max(1, dataService.latestNearbyPostCount)
+        return count == 1 ? "New post nearby!" : "\(count) new posts nearby!"
     }
     
     var body: some View {
@@ -210,11 +216,15 @@ struct MapView: View {
                         Image(systemName: "sparkles")
                             .foregroundColor(.brandGreen)
                             .font(.title3)
-                        Text("New post nearby!")
+                        Text(toastTitle)
                             .fontWeight(.semibold)
                         Spacer()
                         Button("View") {
                             HapticManager.shared.impact(.light)
+                            if let toastPostID, let match = jobs.first(where: { $0.id == toastPostID }) {
+                                selectedJob = match
+                                showingJobDetail = true
+                            }
                             withAnimation {
                                 showNewJobToast = false
                             }
@@ -232,13 +242,6 @@ struct MapView: View {
                 }
                 .padding(.top, 100)
                 .transition(.move(edge: .top).combined(with: .opacity))
-                .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
-                        withAnimation {
-                            showNewJobToast = false
-                        }
-                    }
-                }
             }
         }
         .sheet(isPresented: $showingJobDetail) {
@@ -262,13 +265,6 @@ struct MapView: View {
                 Calendar.current.isDateInToday($0.date)
             }.reduce(0) { $0 + $1.bottleCount }
             todayCO2 = ClimateImpactCalculator.co2Saved(bottles: todayBottles)
-            // Simulate new job appearing for demo
-            DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
-                withAnimation(.spring()) {
-                    showNewJobToast = true
-                    HapticManager.shared.notification(.success)
-                }
-            }
         }
         .onChange(of: locationService.userLocation) { _, location in
             if let location {
@@ -283,6 +279,31 @@ struct MapView: View {
         }
         .onChange(of: jobs.map(\.id)) { _, _ in
             autoFramePostsIfNeeded(force: false)
+        }
+        .onChange(of: dataService.latestNearbyPostID) { _, newValue in
+            guard dataService.currentUser?.type == .collector, let newValue else { return }
+            toastPostID = newValue
+            withAnimation(.spring()) {
+                showNewJobToast = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                withAnimation {
+                    showNewJobToast = false
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AppNotificationService.openCollectionPointNotification)) { notification in
+            guard let postId = notification.userInfo?[AppNotificationService.postIDUserInfoKey] as? String else { return }
+            if let match = jobs.first(where: { $0.id == postId }) {
+                selectedJob = match
+                showingJobDetail = true
+                position = .region(
+                    MKCoordinateRegion(
+                        center: match.coordinate,
+                        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                    )
+                )
+            }
         }
     }
     

@@ -37,6 +37,8 @@ final class DataService: ObservableObject, DataServiceProtocol {
         totalActiveUsers: 0,
         totalJobsCompleted: 0
     )
+    @Published var latestNearbyPostID: String?
+    @Published var latestNearbyPostCount: Int = 0
     @Published var backendStatus: String = "local"
     @Published var lastSyncError: String?
 
@@ -230,7 +232,10 @@ final class DataService: ObservableObject, DataServiceProtocol {
         let addedIDs = currentIDs.subtracting(previousIDs)
 
         if user.type == .collector && !addedIDs.isEmpty {
-            notifications.notifyNewPostNearby(count: addedIDs.count)
+            let openedID = current.first(where: { addedIDs.contains($0.id) })?.id
+            latestNearbyPostID = openedID
+            latestNearbyPostCount = addedIDs.count
+            notifications.notifyNewPostNearby(count: addedIDs.count, postId: openedID)
         }
 
         if user.type == .donor {
@@ -238,14 +243,14 @@ final class DataService: ObservableObject, DataServiceProtocol {
             let currClaimed = Set(current.filter { $0.donorId == user.id && $0.status == .claimed }.map(\.id))
             let newlyClaimed = currClaimed.subtracting(prevClaimed)
             if !newlyClaimed.isEmpty {
-                notifications.notifyPostPickedUp()
+                notifications.notifyPostPickedUp(postId: newlyClaimed.first)
             }
 
             let prevMyPostIDs = Set(previous.filter { $0.donorId == user.id }.map(\.id))
             let currMyPostIDs = Set(current.filter { $0.donorId == user.id }.map(\.id))
             let removedMyPosts = prevMyPostIDs.subtracting(currMyPostIDs)
             if !removedMyPosts.isEmpty && !prevClaimed.isDisjoint(with: removedMyPosts) {
-                notifications.notifyPostCompleted()
+                notifications.notifyPostCompleted(postId: removedMyPosts.first)
             }
         }
     }
