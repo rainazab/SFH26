@@ -290,6 +290,7 @@ struct ProfileView: View {
                 isUploadingProfilePhoto = false
             }
         }
+        .navigationViewStyle(.stack)
     }
 
     private var profileImage: UIImage? {

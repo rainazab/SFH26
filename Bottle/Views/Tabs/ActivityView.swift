@@ -165,6 +165,7 @@ struct ActivityView: View {
                 CompletePickupView(job: job)
             }
         }
+        .navigationViewStyle(.stack)
     }
 }
 

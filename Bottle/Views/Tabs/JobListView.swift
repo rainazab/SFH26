@@ -251,6 +251,7 @@ struct JobListView: View {
             }
         }
         .background(Color(.systemGray6).ignoresSafeArea())
+        .navigationViewStyle(.stack)
     }
 
     private var isBaseEmptyState: Bool {

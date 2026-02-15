@@ -335,6 +335,7 @@ struct DonorHomeView: View {
                 }
             }
         }
+        .navigationViewStyle(.stack)
     }
 
     private var pendingCompletedFeedbackPosts: [BottleJob] {
