@@ -247,7 +247,9 @@ class AuthService: ObservableObject {
                 ?? (data["totalBottles"] as? NSNumber)?.intValue
                 ?? 0
             let joinDate = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date().addingTimeInterval(-60 * 60 * 24 * 90)
-            let profilePhotoBase64 = (data["profilePhotoBase64"] as? String) ?? (data["profilePhotoUrl"] as? String)
+            let profilePhotoReference = (data["profilePhotoPath"] as? String)
+                ?? (data["profilePhotoUrl"] as? String)
+                ?? (data["profilePhotoBase64"] as? String)
 
             let profile = UserProfile(
                 id: firebaseUser.uid,
@@ -259,7 +261,7 @@ class AuthService: ObservableObject {
                 totalEarnings: totalEarnings,
                 joinDate: joinDate,
                 badges: Badge.mockBadges,
-                profilePhotoUrl: profilePhotoBase64
+                profilePhotoUrl: profilePhotoReference
             )
             currentUser = profile
             MockDataService.shared.syncAuthenticatedUser(profile)
@@ -305,6 +307,7 @@ class AuthService: ObservableObject {
             "totalBottlesDiverted": persisted.totalBottles,
             "totalBottles": persisted.totalBottles,
             "profilePhotoBase64": persisted.profilePhotoUrl as Any,
+            "profilePhotoPath": persisted.profilePhotoUrl as Any,
             "profilePhotoUrl": persisted.profilePhotoUrl as Any,
             "updatedAt": FieldValue.serverTimestamp(),
             "createdAt": Timestamp(date: persisted.joinDate)
@@ -334,13 +337,15 @@ class AuthService: ObservableObject {
 
     private func uploadProfilePhoto(_ image: UIImage) async throws {
         guard let firebaseUser = Auth.auth().currentUser else { throw AppError.unauthorized }
-        guard let data = image.jpegData(compressionQuality: 0.6) else {
+        guard let data = resizedProfileImageData(from: image) else {
             throw AppError.validation("Could not process profile image.")
         }
-        let base64 = data.base64EncodedString()
+        let photoReference = try saveProfilePhotoToDocuments(data: data, userId: firebaseUser.uid)
+        let thumbnailBase64 = data.base64EncodedString()
         try await db.collection("users").document(firebaseUser.uid).setData([
-            "profilePhotoBase64": base64,
-            "profilePhotoUrl": base64,
+            "profilePhotoBase64": thumbnailBase64,
+            "profilePhotoPath": photoReference,
+            "profilePhotoUrl": photoReference,
             "updatedAt": FieldValue.serverTimestamp()
         ], merge: true)
 
@@ -356,10 +361,37 @@ class AuthService: ObservableObject {
                 joinDate: current.joinDate,
                 badges: current.badges,
                 fcmToken: current.fcmToken,
-                profilePhotoUrl: base64
+                profilePhotoUrl: photoReference
             )
             currentUser = current
             MockDataService.shared.syncAuthenticatedUser(current)
         }
+    }
+
+    private func resizedProfileImageData(from image: UIImage) -> Data? {
+        let maxDimension: CGFloat = 640
+        let originalSize = image.size
+        let scale = min(1.0, maxDimension / max(originalSize.width, originalSize.height))
+        let targetSize = CGSize(width: originalSize.width * scale, height: originalSize.height * scale)
+
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        let resized = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+        return resized.jpegData(compressionQuality: 0.72)
+    }
+
+    private func saveProfilePhotoToDocuments(data: Data, userId: String) throws -> String {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        guard let docs else {
+            throw AppError.validation("Could not access local storage for profile photo.")
+        }
+        let profilesDir = docs.appendingPathComponent("ProfilePhotos", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: profilesDir.path) {
+            try FileManager.default.createDirectory(at: profilesDir, withIntermediateDirectories: true, attributes: nil)
+        }
+        let fileURL = profilesDir.appendingPathComponent("\(userId).jpg")
+        try data.write(to: fileURL, options: .atomic)
+        return fileURL.absoluteString
     }
 }

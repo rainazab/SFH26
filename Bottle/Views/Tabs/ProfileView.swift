@@ -317,12 +317,21 @@ struct ProfileView: View {
     }
 
     private var profileImage: UIImage? {
-        guard let base64 = profile.profilePhotoUrl,
-              let data = Data(base64Encoded: base64),
-              let image = UIImage(data: data) else {
-            return nil
+        guard let reference = profile.profilePhotoUrl else { return nil }
+
+        if reference.hasPrefix("file://"),
+           let url = URL(string: reference),
+           let data = try? Data(contentsOf: url),
+           let image = UIImage(data: data) {
+            return image
         }
-        return image
+
+        if let data = Data(base64Encoded: reference),
+           let image = UIImage(data: data) {
+            return image
+        }
+
+        return nil
     }
 
     private func colorForEvent(_ type: ActivityType) -> Color {
