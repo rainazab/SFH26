@@ -5,7 +5,6 @@
 
 import SwiftUI
 import MapKit
-import PhotosUI
 import UIKit
 import UserNotifications
 
@@ -29,9 +28,7 @@ struct DonorCreateJobView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showPostedSuccess = false
-    @State private var selectedBottlePhoto: PhotosPickerItem?
     @State private var bottlePhotoImage: UIImage?
-    @State private var selectedLocationPhoto: PhotosPickerItem?
     @State private var locationPhotoImage: UIImage?
     @State private var showBottleCamera = false
     @State private var showLocationCamera = false
@@ -184,10 +181,7 @@ struct DonorCreateJobView: View {
                     Button {
                         showBottleCamera = true
                     } label: {
-                        Label("Take bottle photo", systemImage: "camera.fill")
-                    }
-                    PhotosPicker(selection: $selectedBottlePhoto, matching: .images) {
-                        Label("Choose bottle photo from library", systemImage: "photo.on.rectangle")
+                        Label(bottlePhotoImage == nil ? "Take bottle photo" : "Retake bottle photo", systemImage: "camera.fill")
                     }
                     if let bottlePhotoImage {
                         Image(uiImage: bottlePhotoImage)
@@ -201,10 +195,7 @@ struct DonorCreateJobView: View {
                     Button {
                         showLocationCamera = true
                     } label: {
-                        Label("Take location photo", systemImage: "camera.metering.matrix")
-                    }
-                    PhotosPicker(selection: $selectedLocationPhoto, matching: .images) {
-                        Label("Choose location photo from library", systemImage: "mappin.and.ellipse")
+                        Label(locationPhotoImage == nil ? "Take location photo" : "Retake location photo", systemImage: "camera.metering.matrix")
                     }
                     if let locationPhotoImage {
                         Image(uiImage: locationPhotoImage)
@@ -261,30 +252,6 @@ struct DonorCreateJobView: View {
             .fullScreenCover(isPresented: $showLocationCamera) {
                 CameraImagePicker(image: $locationPhotoImage)
                     .ignoresSafeArea()
-            }
-            .onChange(of: selectedBottlePhoto) { _, newValue in
-                Task {
-                    guard let newValue else { return }
-                    if let data = try? await newValue.loadTransferable(type: Data.self),
-                       let image = UIImage(data: data) {
-                        bottlePhotoImage = image
-                    } else {
-                        errorMessage = "Couldn't load bottle photo. Try a different image."
-                        showError = true
-                    }
-                }
-            }
-            .onChange(of: selectedLocationPhoto) { _, newValue in
-                Task {
-                    guard let newValue else { return }
-                    if let data = try? await newValue.loadTransferable(type: Data.self),
-                       let image = UIImage(data: data) {
-                        locationPhotoImage = image
-                    } else {
-                        errorMessage = "Couldn't load location photo. Try a different image."
-                        showError = true
-                    }
-                }
             }
         }
     }

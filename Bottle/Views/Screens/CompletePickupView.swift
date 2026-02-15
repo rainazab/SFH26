@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import PhotosUI
 import UIKit
 
 struct CompletePickupView: View {
@@ -16,8 +15,8 @@ struct CompletePickupView: View {
     let job: BottleJob
     
     @State private var bottleCount: String = ""
-    @State private var selectedPhoto: PhotosPickerItem?
     @State private var photoImage: UIImage?
+    @State private var showProofCamera = false
     
     @State private var isSubmitting = false
     @State private var showError = false
@@ -54,7 +53,9 @@ struct CompletePickupView: View {
                     .background(Color(.secondarySystemBackground))
                     .cornerRadius(12)
                     
-                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                    Button {
+                        showProofCamera = true
+                    } label: {
                         ZStack {
                             RoundedRectangle(cornerRadius: 12)
                                 .fill(Color(.secondarySystemBackground))
@@ -68,30 +69,12 @@ struct CompletePickupView: View {
                                     .clipped()
                                     .cornerRadius(12)
                             } else {
-                                Label("Upload pickup photo", systemImage: "camera.fill")
+                                Label("Take pickup photo", systemImage: "camera.fill")
                                     .foregroundColor(.secondary)
                             }
                         }
                     }
-                    .onChange(of: selectedPhoto) { _, newValue in
-                        Task {
-                            guard let newValue else { return }
-                            if let data = try? await newValue.loadTransferable(type: Data.self),
-                               let image = UIImage(data: data) {
-                                photoImage = image
-                                aiCount = nil
-                                aiConfidence = nil
-                                aiNotes = nil
-                                aiIsRecyclable = nil
-                                aiMaterials = nil
-                                confirmedLowConfidence = false
-                            } else {
-                                errorMessage = "Couldn't load that photo. Please choose a different one."
-                                showError = true
-                            }
-                        }
-                    }
-                    .accessibilityLabel("Upload pickup photo")
+                    .accessibilityLabel("Take pickup photo")
 
                     if photoImage != nil {
                         Button {
@@ -178,7 +161,7 @@ struct CompletePickupView: View {
                                 ProgressView().progressViewStyle(.circular)
                             } else {
                                 Image(systemName: "checkmark.circle.fill")
-                                Text("Verify Impact")
+                                    Text("Complete Collection")
                                     .fontWeight(.semibold)
                             }
                         }
@@ -214,12 +197,25 @@ struct CompletePickupView: View {
                     Button("Cancel") { dismiss() }
                 }
             }
+            .fullScreenCover(isPresented: $showProofCamera) {
+                CameraImagePicker(image: $photoImage)
+                    .ignoresSafeArea()
+            }
             .alert("Error", isPresented: $showError) {
                 Button("OK") {}
             } message: {
                 Text(errorMessage)
             }
             .onAppear { bottleCount = "\(job.bottleCount)" }
+            .onChange(of: photoImage) { _, newValue in
+                guard newValue != nil else { return }
+                aiCount = nil
+                aiConfidence = nil
+                aiNotes = nil
+                aiIsRecyclable = nil
+                aiMaterials = nil
+                confirmedLowConfidence = false
+            }
         }
         .overlay(alignment: .center) {
             if showImpactBurst {

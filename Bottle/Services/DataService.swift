@@ -976,8 +976,14 @@ private extension DataService {
         let now = Date()
         let didPickupValue = pickedUpDuringDay ? 100.0 : 0.0
 
-        try await db.runTransaction { transaction, _ in
-            let existingFeedback = try transaction.getDocument(feedbackRef)
+        try await db.runTransaction { transaction, errorPointer in
+            let existingFeedback: DocumentSnapshot
+            do {
+                existingFeedback = try transaction.getDocument(feedbackRef)
+            } catch {
+                errorPointer?.pointee = error as NSError
+                return nil
+            }
             if existingFeedback.exists {
                 transaction.setData([
                     "rating": rating,
@@ -987,7 +993,13 @@ private extension DataService {
                 return nil
             }
 
-            let collectorDoc = try transaction.getDocument(collectorRef)
+            let collectorDoc: DocumentSnapshot
+            do {
+                collectorDoc = try transaction.getDocument(collectorRef)
+            } catch {
+                errorPointer?.pointee = error as NSError
+                return nil
+            }
             let currentReviewCount = (collectorDoc.data()?["reviewCount"] as? Int)
                 ?? (collectorDoc.data()?["reviewCount"] as? NSNumber)?.intValue
                 ?? 0
