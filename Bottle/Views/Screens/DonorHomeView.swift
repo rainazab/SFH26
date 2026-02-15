@@ -9,11 +9,6 @@ import SwiftUI
 
 struct DonorHomeView: View {
     @StateObject private var dataService = DataService.shared
-    @State private var bottleCount = ""
-    @State private var selectedTimeframe = "This weekend"
-    @State private var showingPostSuccess = false
-    
-    let timeframes = ["Now", "Today", "Tomorrow", "This weekend", "This week", "Anytime"]
     
     var body: some View {
         NavigationView {
@@ -53,78 +48,24 @@ struct DonorHomeView: View {
                     
                     // Quick Post Card
                     VStack(alignment: .leading, spacing: 20) {
-                        Text("Quick Post")
+                        Text("Create a Post")
                             .font(.title2)
                             .fontWeight(.bold)
-                        
-                        VStack(alignment: .leading, spacing: 16) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("How many bottles?")
-                                    .font(.subheadline)
+                        Text("Simple flow: bottles, location, optional photos, then post.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+
+                        NavigationLink(destination: DonorCreateJobView()) {
+                            HStack {
+                                Image(systemName: "plus.circle.fill")
+                                Text("Start Post")
                                     .fontWeight(.semibold)
-                                
-                                HStack {
-                                    TextField("Enter amount", text: $bottleCount)
-                                        .keyboardType(.numberPad)
-                                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                                    
-                                    Text("bottles")
-                                        .foregroundColor(.secondary)
-                                }
                             }
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("When can they pick up?")
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                
-                                Menu {
-                                    ForEach(timeframes, id: \.self) { time in
-                                        Button(time) {
-                                            selectedTimeframe = time
-                                        }
-                                    }
-                                } label: {
-                                    HStack {
-                                        Text(selectedTimeframe)
-                                        Spacer()
-                                        Image(systemName: "chevron.down")
-                                    }
-                                    .padding()
-                                    .background(Color(.systemGray6))
-                                    .cornerRadius(10)
-                                }
-                                .foregroundColor(.primary)
-                            }
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Where?")
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                
-                                HStack {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(Color.brandGreen)
-                                    Text("1234 Oak St, San Francisco")
-                                    Spacer()
-                                }
-                                .padding()
-                                .background(Color.brandGreen.opacity(0.15))
-                                .cornerRadius(10)
-                            }
-                            
-                            NavigationLink(destination: DonorCreateJobView()) {
-                                HStack {
-                                    Image(systemName: "plus.circle.fill")
-                                    Text("Post Now")
-                                        .fontWeight(.semibold)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.brandGreen)
-                                .foregroundColor(.white)
-                                .cornerRadius(15)
-                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.brandGreen)
+                            .foregroundColor(.white)
+                            .cornerRadius(15)
                         }
                     }
                     .padding()
@@ -200,11 +141,6 @@ struct DonorHomeView: View {
             }
             .navigationTitle("Post Bottles")
             .background(Color(.systemGray6))
-        }
-        .alert("Bottles Posted!", isPresented: $showingPostSuccess) {
-            Button("OK") {}
-        } message: {
-            Text("Your bottles are now available for pickup. You'll be notified when someone claims them.")
         }
     }
 }

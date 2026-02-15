@@ -7,15 +7,15 @@ import SwiftUI
 import MapKit
 import PhotosUI
 import UIKit
+import UserNotifications
 
 struct DonorCreateJobView: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var dataService = DataService.shared
     
-    @State private var title = ""
     @State private var address = ""
     @State private var bottleCount = ""
-    @State private var schedule = "This weekend"
+    @State private var schedule = "Today"
     @State private var notes = ""
     @State private var isRecurring = false
     @State private var tier: JobTier = .residential
@@ -32,17 +32,19 @@ struct DonorCreateJobView: View {
     @State private var bottlePhotoImage: UIImage?
     @State private var selectedLocationPhoto: PhotosPickerItem?
     @State private var locationPhotoImage: UIImage?
+    @State private var showBottleCamera = false
+    @State private var showLocationCamera = false
     @State private var aiSuggestion: String?
     @State private var isAnalyzingPhoto = false
     private let geminiService = GeminiService()
     private let quickBottleCounts = [25, 50, 100, 200, 350]
-    private let quickSchedules = ["Today", "Tonight", "This weekend", "Tomorrow morning"]
+    private let quickSchedules = ["Now", "Today", "Tonight", "Tomorrow", "This weekend"]
+    private let quickContextNotes = ["Dog on site", "Gate code needed", "Use side entrance", "Call on arrival", "Heavy bags"]
     
     var body: some View {
         NavigationView {
             Form {
-                Section("Listing") {
-                    TextField("Title (e.g. Apartment bottles pickup)", text: $title)
+                Section("Post Info") {
                     Picker("Tier", selection: $tier) {
                         Text("Residential").tag(JobTier.residential)
                         Text("Bulk").tag(JobTier.bulk)
@@ -114,8 +116,8 @@ struct DonorCreateJobView: View {
                     }
                 }
                 
-                Section("Details") {
-                    TextField("Schedule", text: $schedule)
+                Section("Pickup Timing") {
+                    TextField("Pickup timing (optional)", text: $schedule)
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(quickSchedules, id: \.self) { option in
@@ -131,13 +133,35 @@ struct DonorCreateJobView: View {
                         }
                     }
                     Toggle("Recurring", isOn: $isRecurring)
-                    TextField("Notes", text: $notes, axis: .vertical)
-                        .lineLimit(3...5)
                 }
 
-                Section("AI Impact Estimate (Optional)") {
+                Section("Things To Know (Optional)") {
+                    TextField("Anything collectors should know?", text: $notes, axis: .vertical)
+                        .lineLimit(2...4)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(quickContextNotes, id: \.self) { item in
+                                Button(item) {
+                                    appendContextNote(item)
+                                }
+                                .font(.caption)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color(.secondarySystemBackground))
+                                .cornerRadius(8)
+                            }
+                        }
+                    }
+                }
+
+                Section("Photos (Optional)") {
+                    Button {
+                        showBottleCamera = true
+                    } label: {
+                        Label("Take bottle photo", systemImage: "camera.fill")
+                    }
                     PhotosPicker(selection: $selectedBottlePhoto, matching: .images) {
-                        Label("Add bottles photo", systemImage: "camera.fill")
+                        Label("Choose bottle photo from library", systemImage: "photo.on.rectangle")
                     }
                     if let bottlePhotoImage {
                         Image(uiImage: bottlePhotoImage)
@@ -148,8 +172,13 @@ struct DonorCreateJobView: View {
                             .clipped()
                             .cornerRadius(10)
                     }
+                    Button {
+                        showLocationCamera = true
+                    } label: {
+                        Label("Take location photo", systemImage: "camera.metering.matrix")
+                    }
                     PhotosPicker(selection: $selectedLocationPhoto, matching: .images) {
-                        Label("Add pickup location photo", systemImage: "mappin.and.ellipse")
+                        Label("Choose location photo from library", systemImage: "mappin.and.ellipse")
                     }
                     if let locationPhotoImage {
                         Image(uiImage: locationPhotoImage)
@@ -161,7 +190,7 @@ struct DonorCreateJobView: View {
                             .cornerRadius(10)
                     }
                     if isAnalyzingPhoto {
-                        ProgressView("Analyzing with Gemini...")
+                        ProgressView("Analyzing (optional)...")
                     }
                     if let aiSuggestion {
                         Text(aiSuggestion)
@@ -182,7 +211,7 @@ struct DonorCreateJobView: View {
                                 ProgressView()
                             } else {
                                 Image(systemName: "paperplane.fill")
-                                Text("Post Listing")
+                                Text("Post")
                                     .fontWeight(.semibold)
                             }
                         }
@@ -190,7 +219,7 @@ struct DonorCreateJobView: View {
                     .disabled(!canSubmit || isSubmitting)
                 }
             }
-            .navigationTitle("Post Impact")
+            .navigationTitle("Post Info")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -209,6 +238,14 @@ struct DonorCreateJobView: View {
             }
             .sheet(isPresented: $showLocationSearchSheet) {
                 LocationSearchView(selectedLocation: $selectedLocationResult)
+            }
+            .fullScreenCover(isPresented: $showBottleCamera) {
+                CameraImagePicker(image: $bottlePhotoImage)
+                    .ignoresSafeArea()
+            }
+            .fullScreenCover(isPresented: $showLocationCamera) {
+                CameraImagePicker(image: $locationPhotoImage)
+                    .ignoresSafeArea()
             }
             .onChange(of: selectedLocationResult) { _, newValue in
                 guard let newValue else { return }
@@ -236,12 +273,11 @@ struct DonorCreateJobView: View {
     }
     
     private var canSubmit: Bool {
-        !title.isEmpty && (Int(bottleCount) ?? 0) > 0 && coordinate != nil && !address.isEmpty
+        (Int(bottleCount) ?? 0) > 0 && coordinate != nil && !address.isEmpty
     }
 
     private var missingRequirementsText: String {
         var missing: [String] = []
-        if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { missing.append("title") }
         if (Int(bottleCount) ?? 0) <= 0 { missing.append("bottle count") }
         if coordinate == nil || address.isEmpty { missing.append("location") }
         if missing.isEmpty { return "" }
@@ -263,7 +299,7 @@ struct DonorCreateJobView: View {
         Task {
             do {
                 try await dataService.createJob(
-                    title: title,
+                    title: autoPostTitle(for: count),
                     address: address,
                     location: GeoLocation(coordinate: coordinate),
                     bottleCount: count,
@@ -276,6 +312,7 @@ struct DonorCreateJobView: View {
                     locationPhotoBase64: locationPhotoImage?.jpegData(compressionQuality: 0.6)?.base64EncodedString()
                 )
                 isSubmitting = false
+                sendPostNotification(for: count)
                 showPostedSuccess = true
             } catch {
                 isSubmitting = false
@@ -304,6 +341,73 @@ struct DonorCreateJobView: View {
             aiSuggestion = "Gemini confidence \(countResult.confidence)%\(materialsText) • \(recycleResult.summary) • estimated climate impact: \(String(format: "%.1f", estimatedCo2)) kg CO₂ diverted."
         } catch {
             aiSuggestion = "Gemini estimate unavailable. You can still post and create impact manually."
+        }
+    }
+
+    private func appendContextNote(_ note: String) {
+        if notes.contains(note) { return }
+        if notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            notes = note
+        } else {
+            notes += ", \(note)"
+        }
+    }
+
+    private func autoPostTitle(for count: Int) -> String {
+        let name = dataService.currentUser?.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let safeName = (name?.isEmpty == false) ? name! : "Community"
+        return "\(safeName) • \(count) bottles"
+    }
+
+    private func sendPostNotification(for count: Int) {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = "Post is live"
+            content.body = "Your \(count)-bottle post is now visible to nearby collectors."
+            content.sound = .default
+            let request = UNNotificationRequest(
+                identifier: UUID().uuidString,
+                content: content,
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+            )
+            center.add(request)
+        }
+    }
+}
+
+struct CameraImagePicker: UIViewControllerRepresentable {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var image: UIImage?
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary
+        picker.delegate = context.coordinator
+        picker.allowsEditing = true
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        private let parent: CameraImagePicker
+        init(_ parent: CameraImagePicker) { self.parent = parent }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.dismiss()
+        }
+
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            if let edited = info[.editedImage] as? UIImage {
+                parent.image = edited
+            } else if let original = info[.originalImage] as? UIImage {
+                parent.image = original
+            }
+            parent.dismiss()
         }
     }
 }

@@ -377,7 +377,6 @@ final class DataService: ObservableObject, DataServiceProtocol {
         locationPhotoBase64: String? = nil
     ) async throws {
         guard let user = currentUser else { throw AppError.unauthorized }
-        guard user.type == .donor else { throw AppError.validation("Only donors can create posts.") }
 
         #if canImport(FirebaseFirestore)
         if isFirestoreEnabled {
