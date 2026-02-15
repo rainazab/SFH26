@@ -184,8 +184,8 @@ struct CompletePickupView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.blue.opacity(0.15))
-                        .foregroundColor(.blue)
+                        .background(Color.brandBlueSurface)
+                        .foregroundColor(.brandBlueDark)
                         .cornerRadius(12)
                     }
                 }

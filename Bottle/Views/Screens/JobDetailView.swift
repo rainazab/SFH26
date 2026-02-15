@@ -242,7 +242,7 @@ struct JobDetailView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color.blue)
+                                .background(Color.brandBlueDark)
                                 .foregroundColor(.white)
                                 .cornerRadius(15)
                             }

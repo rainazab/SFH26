@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - View Extensions for Styling
 extension View {
@@ -64,14 +67,28 @@ extension Color {
         )
     }
 
-    // Primary brand palette (green + dark blue + baby blue)
-    static let brandGreen = Color(hex: "7CCF73")
-    static let brandGreenLight = Color(hex: "AEE67A")
-    static let brandGreenDark = Color(hex: "5DA765")
-    static let brandBlueDark = Color(hex: "3F56AE")
-    static let brandBlueLight = Color(hex: "78B6F6")
-    static let brandBlack = Color(hex: "0A0A0A")
-    static let brandWhite = Color(hex: "FEFEFE")
+    private static func adaptive(light: Color, dark: Color) -> Color {
+        #if canImport(UIKit)
+        return Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark ? UIColor(dark) : UIColor(light)
+        })
+        #else
+        return light
+        #endif
+    }
+
+    // Primary brand palette from provided hex values:
+    // #C7E7FD, #66C2FF, #3694E8, #34A853
+    static let brandGreen = adaptive(light: Color(hex: "34A853"), dark: Color(hex: "5FCB75"))
+    static let brandGreenLight = adaptive(light: Color(hex: "7BD48D"), dark: Color(hex: "6ECF80"))
+    static let brandGreenDark = adaptive(light: Color(hex: "2D8E47"), dark: Color(hex: "34A853"))
+
+    static let brandBlueDark = adaptive(light: Color(hex: "3694E8"), dark: Color(hex: "66C2FF"))
+    static let brandBlueLight = adaptive(light: Color(hex: "66C2FF"), dark: Color(hex: "3694E8"))
+    static let brandBlueSurface = adaptive(light: Color(hex: "C7E7FD"), dark: Color(hex: "1E2F40"))
+
+    static let brandBlack = adaptive(light: Color(hex: "0A0A0A"), dark: Color(hex: "F5FAFF"))
+    static let brandWhite = adaptive(light: Color(hex: "FEFEFE"), dark: Color(hex: "0E1722"))
     
     // Tier colors aligned to palette
     static let tierResidential = Color.brandGreen
@@ -97,9 +114,9 @@ extension Color {
         case .residential:
             return LinearGradient(colors: [Color.tierResidential, Color.brandGreenLight], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .bulk:
-            return LinearGradient(colors: [Color.tierBulk, Color(hex: "9DCCFA")], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(colors: [Color.tierBulk, Color.brandBlueSurface], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .commercial:
-            return LinearGradient(colors: [Color.tierCommercial, Color(hex: "5F76CC")], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(colors: [Color.tierCommercial, Color.brandBlueLight], startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
 }

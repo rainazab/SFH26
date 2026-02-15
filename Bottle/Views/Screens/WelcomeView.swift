@@ -18,25 +18,25 @@ struct WelcomeView: View {
             icon: "waterbottle.fill",
             title: "bottlr: Bottles Into Impact",
             subtitle: "Coordinate bottle pickups fast and keep recyclable material out of landfill.",
-            color: "7CCF73"
+            color: "34A853"
         ),
         (
             icon: "map.fill",
             title: "Find Posts Near You",
             subtitle: "See all available bottles on an interactive map. Claim the best ones first.",
-            color: "3F56AE"
+            color: "3694E8"
         ),
         (
             icon: "checkmark.seal.fill",
             title: "Track Verified Drop-Offs",
             subtitle: "Monitor completed pickups, bottle counts, and verified climate outcomes.",
-            color: "78B6F6"
+            color: "66C2FF"
         ),
         (
             icon: "heart.circle.fill",
             title: "Make a Difference",
             subtitle: "Join 150,000 collectors creating a cleaner, more sustainable California.",
-            color: "3F56AE"
+            color: "3694E8"
         )
     ]
     
@@ -45,8 +45,8 @@ struct WelcomeView: View {
             // Dynamic gradient background
             LinearGradient(
                 colors: colorScheme == .dark
-                    ? [Color(hex: pages[currentPage].color).opacity(0.4), Color.black]
-                    : [Color(hex: pages[currentPage].color).opacity(0.2), Color.white],
+                    ? [Color.brandWhite, Color(hex: pages[currentPage].color).opacity(0.45), Color.brandBlueDark.opacity(0.35)]
+                    : [Color(hex: "C7E7FD"), Color(hex: pages[currentPage].color).opacity(0.32), Color.white],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )

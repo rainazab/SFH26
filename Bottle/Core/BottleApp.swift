@@ -135,8 +135,8 @@ struct LoadingView: View {
             ZStack {
                 LinearGradient(
                     colors: colorScheme == .dark
-                        ? [Color.brandBlack, Color.brandBlueDark]
-                        : [Color(hex: "BFE2FF"), Color(hex: "9CCFFF"), Color(hex: "78B6F6")],
+                        ? [Color.brandWhite, Color.brandBlueSurface, Color.brandBlueDark]
+                        : [Color(hex: "C7E7FD"), Color(hex: "66C2FF"), Color(hex: "3694E8")],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
