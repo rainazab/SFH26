@@ -29,6 +29,8 @@ final class DataService: ObservableObject, DataServiceProtocol {
     @Published var walletTransactions: [WalletTransaction] = []
     @Published var leaderboardUsers: [UserProfile] = []
     @Published var activityTimeline: [ActivityEvent] = []
+    @Published var cityBottlesToday: Int = 0
+    @Published var cityCO2Today: Double = 0
     @Published var backendStatus: String = "local"
     @Published var lastSyncError: String?
 
@@ -45,6 +47,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
     private var jobsListener: ListenerRegistration?
     private var pickupsListener: ListenerRegistration?
     private var usersListener: ListenerRegistration?
+    private var cityImpactListener: ListenerRegistration?
     #endif
 
     private enum StorageKeys {
@@ -84,6 +87,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
             observeJobs()
             observePickups()
             observeLeaderboard()
+            observeCityImpact()
         }
         #else
         isFirestoreEnabled = false
@@ -97,9 +101,11 @@ final class DataService: ObservableObject, DataServiceProtocol {
         jobsListener?.remove()
         pickupsListener?.remove()
         usersListener?.remove()
+        cityImpactListener?.remove()
         jobsListener = nil
         pickupsListener = nil
         usersListener = nil
+        cityImpactListener = nil
         cancellables.removeAll()
         bindCurrentUser()
         #endif
@@ -122,6 +128,12 @@ final class DataService: ObservableObject, DataServiceProtocol {
                 users.sorted { $0.totalBottles > $1.totalBottles }
             }
             .assign(to: &$leaderboardUsers)
+
+        appState.$completedJobs
+            .sink { [weak self] history in
+                self?.updateCityImpact(from: history)
+            }
+            .store(in: &cancellables)
     }
 
     private func refreshDerivedCollections() {
@@ -169,6 +181,12 @@ final class DataService: ObservableObject, DataServiceProtocol {
         }
 
         activityTimeline = events.sorted { $0.date > $1.date }
+    }
+
+    private func updateCityImpact(from pickups: [PickupHistory]) {
+        let today = pickups.filter { Calendar.current.isDateInToday($0.date) }
+        cityBottlesToday = today.reduce(0) { $0 + $1.bottleCount }
+        cityCO2Today = ClimateImpactCalculator.co2Saved(bottles: cityBottlesToday)
     }
 
     func claimJob(_ job: BottleJob) async throws {
@@ -227,7 +245,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
             id: UUID().uuidString,
             date: Date(),
             title: "Verified pickup: \(job.title)",
-            amount: job.payout,
+            amount: job.estimatedValue,
             bottleCount: bottleCount
         )
         walletTransactions.insert(transaction, at: 0)
@@ -263,7 +281,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
             id: UUID().uuidString,
             date: Date(),
             title: "Verified pickup: \(job.title)",
-            amount: job.payout,
+            amount: job.estimatedValue,
             bottleCount: bottleCount
         )
         walletTransactions.insert(transaction, at: 0)
@@ -518,6 +536,19 @@ private extension DataService {
             }
     }
 
+    func observeCityImpact() {
+        cityImpactListener?.remove()
+        cityImpactListener = db.collection("pickups")
+            .limit(to: 500)
+            .addSnapshotListener { [weak self] snapshot, _ in
+                Task { @MainActor in
+                    guard let self, let docs = snapshot?.documents else { return }
+                    let history = docs.compactMap(FirestorePickupRecord.init(document:)).map(\.history)
+                    self.updateCityImpact(from: history)
+                }
+            }
+    }
+
     func claimJobInFirestore(_ job: BottleJob, collectorId: String) async throws {
         let ref = db.collection("jobs").document(job.id)
         let snap = try await ref.getDocument()
@@ -554,6 +585,7 @@ private extension DataService {
             address: address,
             bottleCount: bottleCount,
             payout: Double(bottleCount) * 0.10,
+            demandMultiplier: demandMultiplier(for: tier, bottleCount: bottleCount),
             tier: tier,
             status: .available,
             schedule: schedule.isEmpty ? availableTime : schedule,
@@ -589,12 +621,33 @@ private extension DataService {
             collectorId: collectorId,
             jobTitle: job.title,
             bottleCount: bottleCount,
-            earnings: job.payout,
+            earnings: job.estimatedValue,
             review: aiVerified ? "AI verified pickup completed smoothly." : "Pickup completed successfully.",
             date: Date(),
             proofPhotoBase64: proofPhotoBase64
         )
         try await db.collection("pickups").document(pickup.id).setData(pickup.dictionary)
+
+        try await db.collection("users").document(collectorId).setData([
+            "totalEarnings": FieldValue.increment(job.estimatedValue),
+            "totalBottlesDiverted": FieldValue.increment(Int64(bottleCount)),
+            "totalBottles": FieldValue.increment(Int64(bottleCount)),
+            "reviewCount": FieldValue.increment(Int64(1)),
+            "reliabilityScore": 96.0,
+            "onTimeRate": 98.0,
+            "updatedAt": FieldValue.serverTimestamp()
+        ], merge: true)
+    }
+
+    func demandMultiplier(for tier: JobTier, bottleCount: Int) -> Double {
+        let base: Double
+        switch tier {
+        case .residential: base = 1.0
+        case .bulk: base = 1.1
+        case .commercial: base = 1.2
+        }
+        let scarcityBonus = bottleCount > 250 ? 0.1 : 0
+        return min(1.5, base + scarcityBonus)
     }
 }
 
@@ -607,6 +660,7 @@ private struct FirestoreJobRecord {
     let address: String
     let bottleCount: Int
     let payout: Double
+    let demandMultiplier: Double
     let tier: JobTier
     var status: JobStatus
     let schedule: String
@@ -626,6 +680,7 @@ private struct FirestoreJobRecord {
         let donorIdValue = (data["donorId"] as? String) ?? (data["donor_id"] as? String)
         let bottleCountValue = bottleValue ?? (data["bottle_count"] as? Int) ?? (data["bottle_count"] as? NSNumber)?.intValue
         let payoutRaw = payoutValue ?? (data["estimatedValue"] as? Double) ?? (data["estimatedValue"] as? NSNumber)?.doubleValue
+        let demandMultiplier = (data["demandMultiplier"] as? Double) ?? (data["demandMultiplier"] as? NSNumber)?.doubleValue ?? 1.0
         let statusRawValue = ((data["status"] as? String) ?? "available").lowercased()
         let mappedStatus: JobStatus
         switch statusRawValue {
@@ -677,6 +732,7 @@ private struct FirestoreJobRecord {
         self.address = address
         self.bottleCount = bottleCount
         self.payout = payout
+        self.demandMultiplier = demandMultiplier
         self.tier = tier
         self.status = mappedStatus
         self.schedule = schedule
@@ -704,6 +760,7 @@ private struct FirestoreJobRecord {
         address: String,
         bottleCount: Int,
         payout: Double,
+        demandMultiplier: Double,
         tier: JobTier,
         status: JobStatus,
         schedule: String,
@@ -724,6 +781,7 @@ private struct FirestoreJobRecord {
         self.address = address
         self.bottleCount = bottleCount
         self.payout = payout
+        self.demandMultiplier = demandMultiplier
         self.tier = tier
         self.status = status
         self.schedule = schedule
@@ -746,6 +804,7 @@ private struct FirestoreJobRecord {
             address: address,
             bottleCount: bottleCount,
             payout: payout,
+            demandMultiplier: demandMultiplier,
             tier: tier,
             status: status,
             schedule: schedule,
@@ -779,6 +838,8 @@ private struct FirestoreJobRecord {
             "address": address,
             "bottleCount": bottleCount,
             "payout": payout,
+            "demandMultiplier": demandMultiplier,
+            "estimatedValue": payout * max(demandMultiplier, 1.0),
             "tier": tier.rawValue,
             "status": firestoreStatus,
             "schedule": schedule,

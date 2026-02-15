@@ -91,6 +91,7 @@ struct BottleJob: Codable, Identifiable {
     let address: String
     let bottleCount: Int
     let payout: Double
+    var demandMultiplier: Double = 1.0
     let tier: JobTier
     var status: JobStatus
     let schedule: String
@@ -103,9 +104,14 @@ struct BottleJob: Codable, Identifiable {
     var distance: Double?
     var bottlePhotoBase64: String? = nil
     var locationPhotoBase64: String? = nil
+    var expiresAt: Date? = nil
     
     var coordinate: CLLocationCoordinate2D {
         location.coordinate
+    }
+
+    var estimatedValue: Double {
+        payout * max(demandMultiplier, 1.0)
     }
     
     enum CodingKeys: String, CodingKey {
@@ -114,6 +120,7 @@ struct BottleJob: Codable, Identifiable {
         case title, location, address
         case bottleCount = "bottle_count"
         case payout, tier, status, schedule, notes
+        case demandMultiplier = "demand_multiplier"
         case donorRating = "donor_rating"
         case isRecurring = "is_recurring"
         case availableTime = "available_time"
@@ -122,6 +129,7 @@ struct BottleJob: Codable, Identifiable {
         case distance
         case bottlePhotoBase64 = "bottle_photo_base64"
         case locationPhotoBase64 = "location_photo_base64"
+        case expiresAt = "expires_at"
     }
 }
 
@@ -132,6 +140,9 @@ struct UserProfile: Codable, Identifiable {
     var email: String
     let type: UserType
     var rating: Double
+    var reliabilityScore: Double = 100
+    var onTimeRate: Double = 100
+    var cancellationRate: Double = 0
     var totalBottles: Int
     var totalEarnings: Double
     var reviewCount: Int = 0
@@ -143,6 +154,9 @@ struct UserProfile: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id = "_id"
         case name, email, type, rating
+        case reliabilityScore = "reliability_score"
+        case onTimeRate = "on_time_rate"
+        case cancellationRate = "cancellation_rate"
         case totalBottles = "total_bottles"
         case totalEarnings = "total_earnings"
         case reviewCount = "review_count"
@@ -215,6 +229,8 @@ struct PickupHistory: Codable, Identifiable {
     let rating: Double
     let review: String
     var proofPhotoBase64: String? = nil
+    var aiConfidence: Int? = nil
+    var materialBreakdown: MaterialBreakdown? = nil
     
     enum CodingKeys: String, CodingKey {
         case id = "_id"
@@ -223,6 +239,8 @@ struct PickupHistory: Codable, Identifiable {
         case bottleCount = "bottle_count"
         case earnings, rating, review
         case proofPhotoBase64 = "proof_photo_base64"
+        case aiConfidence = "ai_confidence"
+        case materialBreakdown = "material_breakdown"
     }
 }
 

@@ -50,11 +50,16 @@ class GeminiService {
             "visible": <number>,
             "estimated_in_bags": <number>
           },
+          "materials": {
+            "plastic": <number>,
+            "aluminum": <number>,
+            "glass": <number>
+          },
           "notes": "<brief description of what you see>"
         }
         
         Example response:
-        {"count": 45, "confidence": 85, "breakdown": {"visible": 30, "estimated_in_bags": 15}, "notes": "30 clearly visible bottles plus 1 large bag containing approximately 15 bottles"}
+        {"count": 45, "confidence": 85, "breakdown": {"visible": 30, "estimated_in_bags": 15}, "materials": {"plastic": 20, "aluminum": 15, "glass": 10}, "notes": "30 clearly visible bottles plus 1 large bag containing approximately 15 bottles"}
         """
         
         let requestBody: [String: Any] = [
@@ -271,6 +276,7 @@ struct BottleCountResult: Codable {
     let count: Int
     let confidence: Int
     let breakdown: CountBreakdown
+    let materials: MaterialBreakdown?
     let notes: String
 }
 
@@ -282,6 +288,12 @@ struct CountBreakdown: Codable {
         case visible
         case estimatedInBags = "estimated_in_bags"
     }
+}
+
+struct MaterialBreakdown: Codable {
+    let plastic: Int
+    let aluminum: Int
+    let glass: Int
 }
 
 struct VerificationResult {

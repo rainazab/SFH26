@@ -66,9 +66,14 @@ struct JobDetailView: View {
                                 Text("EST. VALUE")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                Text("$\(String(format: "%.0f", job.payout))")
+                                Text("$\(String(format: "%.0f", job.estimatedValue))")
                                     .font(.system(size: 36, weight: .bold))
                                     .foregroundColor(Color.brandGreen)
+                                if job.demandMultiplier > 1.0 {
+                                    Text("Includes \(Int((job.demandMultiplier - 1.0) * 100))% demand bonus")
+                                        .font(.caption2)
+                                        .foregroundColor(.brandBlueLight)
+                                }
                             }
                             
                             Divider()

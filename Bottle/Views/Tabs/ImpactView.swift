@@ -25,6 +25,36 @@ struct ImpactView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 24) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("CITY IMPACT TODAY")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(dataService.cityBottlesToday)")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                Text("bottles diverted")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 4) {
+                                Text("\(String(format: "%.1f", dataService.cityCO2Today)) kg")
+                                    .font(.title3)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.brandBlueLight)
+                                Text("CO₂ saved")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color(.systemBackground))
+                    .cornerRadius(16)
+                    .padding(.horizontal)
+
                     // Hero Stats
                     VStack(spacing: 20) {
                         HeroStatCard(

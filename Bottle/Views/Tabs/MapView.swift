@@ -27,7 +27,7 @@ struct MapView: View {
     private var jobs: [BottleJob] { dataService.availableJobs }
     
     var nearestHighValueJob: BottleJob? {
-        jobs.filter({ $0.payout > 30 }).min(by: { ($0.distance ?? 0) < ($1.distance ?? 0) })
+        jobs.filter({ $0.estimatedValue > 30 }).min(by: { ($0.distance ?? 0) < ($1.distance ?? 0) })
     }
     
     var body: some View {
@@ -46,7 +46,7 @@ struct MapView: View {
                         }) {
                             ZStack {
                                 // Pulse effect for high-value jobs
-                                if job.payout > 30 {
+                                if job.estimatedValue > 30 {
                                     Circle()
                                         .fill(tierColor(job.tier).opacity(0.3))
                                         .frame(width: 60, height: 60)
@@ -57,13 +57,13 @@ struct MapView: View {
                                 Circle()
                                     .fill(tierColor(job.tier))
                                     .frame(width: 40, height: 40)
-                                    .shadow(color: tierColor(job.tier).opacity(0.5), radius: job.payout > 30 ? 8 : 3)
+                                    .shadow(color: tierColor(job.tier).opacity(0.5), radius: job.estimatedValue > 30 ? 8 : 3)
                                 
                                 VStack(spacing: 2) {
                                     Image(systemName: job.tier.icon)
                                         .font(.system(size: 12))
                                         .foregroundColor(.white)
-                                    Text("$\(Int(job.payout))")
+                                    Text("$\(Int(job.estimatedValue))")
                                         .font(.system(size: 9, weight: .bold))
                                         .foregroundColor(.white)
                                 }

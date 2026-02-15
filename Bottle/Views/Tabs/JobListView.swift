@@ -23,7 +23,7 @@ struct JobListView: View {
     var filteredJobs: [BottleJob] {
         dataService.availableJobs.filter { job in
             (selectedTier == nil || job.tier == selectedTier) &&
-            job.payout >= minEstimatedValue &&
+            job.estimatedValue >= minEstimatedValue &&
             (job.distance ?? 0) <= maxDistance &&
             (searchText.isEmpty || job.title.localizedCaseInsensitiveContains(searchText))
         }
@@ -222,13 +222,18 @@ struct JobCard: View {
                 
                 // Estimated redemption value
                 VStack(spacing: 4) {
-                    Text("$\(Int(job.payout))")
+                    Text("$\(Int(job.estimatedValue))")
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundColor(Color.brandGreen)
                     Text("est. value")
                         .font(.caption2)
                         .foregroundColor(.secondary)
+                    if job.demandMultiplier > 1.0 {
+                        Text("+\(Int((job.demandMultiplier - 1.0) * 100))% demand")
+                            .font(.caption2)
+                            .foregroundColor(.brandBlueLight)
+                    }
                 }
             }
             

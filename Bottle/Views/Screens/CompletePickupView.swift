@@ -29,6 +29,7 @@ struct CompletePickupView: View {
     @State private var aiEstimatedCRV: Double?
     @State private var aiIsRecyclable: Bool?
     @State private var isCountingWithAI = false
+    @State private var showImpactBurst = false
     
     private let geminiService = GeminiService()
     
@@ -39,7 +40,7 @@ struct CompletePickupView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(job.title).font(.headline)
                         Text(job.address).font(.caption).foregroundColor(.secondary)
-                        Text("Estimated redemption value: $\(String(format: "%.2f", job.payout))")
+                        Text("Estimated redemption value: $\(String(format: "%.2f", job.estimatedValue))")
                             .font(.subheadline)
                             .foregroundColor(.brandGreen)
                         Text("Value is redeemed at local recycling centers, not paid through bottlr.")
@@ -169,6 +170,23 @@ struct CompletePickupView: View {
             }
             .onAppear { bottleCount = "\(job.bottleCount)" }
         }
+        .overlay(alignment: .center) {
+            if showImpactBurst {
+                VStack(spacing: 10) {
+                    Text("+$\(String(format: "%.2f", job.estimatedValue))")
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .foregroundColor(.brandGreen)
+                    Text("+\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: Int(bottleCount) ?? job.bottleCount))) kg CO₂")
+                        .font(.headline)
+                        .foregroundColor(.brandBlueLight)
+                }
+                .padding(18)
+                .background(.ultraThinMaterial)
+                .cornerRadius(16)
+                .transition(.scale.combined(with: .opacity))
+            }
+        }
     }
     
     private var canSubmit: Bool {
@@ -215,10 +233,17 @@ struct CompletePickupView: View {
                 try await dataService.completeJob(
                     job,
                     bottleCount: count,
-                    aiVerified: aiCount != nil,
+                    aiVerified: AppConfig.aiVerificationEnabled && aiCount != nil,
                     proofPhotoBase64: photoImage?.jpegData(compressionQuality: 0.6)?.base64EncodedString()
                 )
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) {
+                    showImpactBurst = true
+                }
                 isSubmitting = false
+                try? await Task.sleep(nanoseconds: 1_100_000_000)
+                withAnimation {
+                    showImpactBurst = false
+                }
                 dismiss()
             } catch {
                 isSubmitting = false

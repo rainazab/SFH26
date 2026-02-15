@@ -91,6 +91,15 @@ struct ProfileView: View {
                             Text("\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: profile.totalBottles))) kg CO₂ saved")
                                 .font(.caption)
                                 .foregroundColor(.brandBlueLight)
+
+                            HStack(spacing: 10) {
+                                Label("\(Int(profile.reliabilityScore))% reliable", systemImage: "checkmark.shield.fill")
+                                    .font(.caption2)
+                                    .foregroundColor(.brandGreen)
+                                Label("\(Int(profile.onTimeRate))% on-time", systemImage: "clock.badge.checkmark")
+                                    .font(.caption2)
+                                    .foregroundColor(.brandBlueLight)
+                            }
                         }
                         
                         // Quick Stats
