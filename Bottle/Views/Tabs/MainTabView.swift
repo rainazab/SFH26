@@ -21,48 +21,43 @@ struct MainTabView: View {
     
     var body: some View {
         TabView(selection: $selectedTab) {
-            // Map View (Primary for Collectors)
-            MapView()
-                .tabItem {
-                    Label("Explore", systemImage: "map.fill")
-                }
-                .tag(0)
-            
-            // Post/List View
             if userType == .donor {
                 DonorHomeView()
                     .tabItem {
-                        Label("Donate", systemImage: "plus.circle.fill")
+                        Label("Home", systemImage: "house.fill")
+                    }
+                    .tag(0)
+
+                ActivityView()
+                    .tabItem {
+                        Label("History", systemImage: "clock.fill")
                     }
                     .tag(1)
+
+                ProfileView()
+                    .tabItem {
+                        Label("Profile", systemImage: "person.fill")
+                    }
+                    .tag(2)
             } else {
                 JobListView()
                     .tabItem {
                         Label("Posts", systemImage: "list.bullet")
                     }
+                    .tag(0)
+
+                ActivityView()
+                    .tabItem {
+                        Label("Active", systemImage: "clock.fill")
+                    }
                     .tag(1)
+
+                ProfileView()
+                    .tabItem {
+                        Label("Profile", systemImage: "person.fill")
+                    }
+                    .tag(2)
             }
-            
-            // Activity/History
-            ActivityView()
-                .tabItem {
-                    Label("Activity", systemImage: "clock.fill")
-                }
-                .tag(2)
-            
-            // Impact/Stats
-            ImpactView()
-                .tabItem {
-                    Label("Impact", systemImage: "chart.bar.fill")
-                }
-                .tag(3)
-            
-            // Profile
-            ProfileView()
-                .tabItem {
-                    Label("Profile", systemImage: "person.fill")
-                }
-                .tag(4)
         }
         .accentColor(Color.brandGreen)
         .onChange(of: selectedTab) { _, _ in

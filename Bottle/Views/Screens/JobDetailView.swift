@@ -74,9 +74,6 @@ struct JobDetailView: View {
                                         .font(.caption2)
                                         .foregroundColor(.brandGreen)
                                 }
-                                Text("$\(String(format: "%.0f", job.estimatedValue * (1 - dataService.platformFeePercentage))) payout after fee")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
                             }
                             
                             Divider()

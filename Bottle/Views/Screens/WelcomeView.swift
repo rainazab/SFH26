@@ -16,7 +16,7 @@ struct WelcomeView: View {
     let pages: [(icon: String, title: String, subtitle: String, color: String)] = [
         (
             icon: "waterbottle.fill",
-            title: "bottlr: Bottles Into Cash",
+            title: "bottlr: Bottles Into Impact",
             subtitle: "Coordinate bottle pickups fast and keep recyclable material out of landfill.",
             color: "7CCF73"
         ),
@@ -27,9 +27,9 @@ struct WelcomeView: View {
             color: "3F56AE"
         ),
         (
-            icon: "dollarsign.circle.fill",
+            icon: "checkmark.seal.fill",
             title: "Track Verified Drop-Offs",
-            subtitle: "Monitor completed pickups and estimated redemption value at local recycling centers.",
+            subtitle: "Monitor completed pickups, bottle counts, and verified climate outcomes.",
             color: "78B6F6"
         ),
         (

@@ -44,9 +44,6 @@ struct CompletePickupView: View {
                         Text("Impact potential: \(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: job.bottleCount))) kg CO₂ saved")
                             .font(.subheadline)
                             .foregroundColor(.brandBlueLight)
-                        Text("Estimated payout after \(Int(dataService.platformFeePercentage * 100))% fee: $\(String(format: "%.2f", job.estimatedValue * (1 - dataService.platformFeePercentage)))")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
                         Text("Every verified pickup improves neighborhood recycling outcomes.")
                             .font(.caption2)
                             .foregroundColor(.secondary)
@@ -192,7 +189,7 @@ struct CompletePickupView: View {
                         .font(.title)
                         .fontWeight(.bold)
                         .foregroundColor(.brandBlueLight)
-                    Text("+$\(String(format: "%.2f", job.estimatedValue)) est.")
+                    Text("+\(Int(bottleCount) ?? job.bottleCount) bottles")
                         .font(.headline)
                         .foregroundColor(.brandGreen)
                 }

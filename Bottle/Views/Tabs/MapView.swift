@@ -21,7 +21,7 @@ struct MapView: View {
     @State private var selectedJob: BottleJob?
     @State private var showingJobDetail = false
     @State private var isPulsing = true
-    @State private var todayEarnings: Double = 0
+    @State private var todayCO2: Double = 0
     @State private var showNewJobToast = false
 
     private var jobs: [BottleJob] { dataService.availableJobs }
@@ -63,7 +63,7 @@ struct MapView: View {
                                     Image(systemName: job.tier.icon)
                                         .font(.system(size: 12))
                                         .foregroundColor(.white)
-                                    Text("$\(Int(job.estimatedValue))")
+                                    Text("\(job.bottleCount)")
                                         .font(.system(size: 9, weight: .bold))
                                         .foregroundColor(.white)
                                 }
@@ -110,15 +110,18 @@ struct MapView: View {
                 VStack(spacing: 12) {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("TODAY'S EARNINGS")
+                            Text("TODAY'S IMPACT")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             
                             // Animated counter
-                            AnimatedNumber(value: todayEarnings, format: "%.0f")
+                            AnimatedNumber(value: todayCO2, format: "%.1f")
                                 .font(.title)
                                 .fontWeight(.bold)
-                                .foregroundColor(Color.brandGreen)
+                                .foregroundColor(Color.brandBlueLight)
+                            Text("kg CO₂ saved")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
                         }
                         
                         Spacer()
@@ -153,7 +156,7 @@ struct MapView: View {
                         HStack(spacing: 8) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundColor(.accentOrange)
-                            Text("High-value post \(String(format: "%.1f", highValueJob.distance ?? 0)) mi away!")
+                            Text("High-impact post \(String(format: "%.1f", highValueJob.distance ?? 0)) mi away!")
                                 .font(.caption)
                                 .fontWeight(.semibold)
                             Spacer()
@@ -248,9 +251,10 @@ struct MapView: View {
                     )
                 )
             }
-            todayEarnings = Double(dataService.completedJobs.filter {
+            let todayBottles = dataService.completedJobs.filter {
                 Calendar.current.isDateInToday($0.date)
-            }.reduce(0) { $0 + $1.bottleCount })
+            }.reduce(0) { $0 + $1.bottleCount }
+            todayCO2 = ClimateImpactCalculator.co2Saved(bottles: todayBottles)
             // Simulate new job appearing for demo
             DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
                 withAnimation(.spring()) {

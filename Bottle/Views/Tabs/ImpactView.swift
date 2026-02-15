@@ -83,10 +83,10 @@ struct ImpactView: View {
                         
                         HStack(spacing: 15) {
                             MiniStatCard(
-                                value: "$\(Int(impactStats.totalEarnings))",
-                                subtitle: "est. value tracked",
-                                icon: "dollarsign.circle.fill",
-                                color: Color(hex: "FF9800")
+                                value: "\(impactStats.totalBottles)",
+                                subtitle: "bottles tracked",
+                                icon: "cylinder.fill",
+                                color: .brandGreen
                             )
                             
                             MiniStatCard(

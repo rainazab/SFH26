@@ -34,9 +34,6 @@ struct DonorCreateJobView: View {
     @State private var locationPhotoImage: UIImage?
     @State private var showBottleCamera = false
     @State private var showLocationCamera = false
-    @State private var aiSuggestion: String?
-    @State private var isAnalyzingPhoto = false
-    private let geminiService = GeminiService()
     private let quickBottleCounts = [25, 50, 100, 200, 350]
     private let quickSchedules = ["Now", "Today", "Tonight", "Tomorrow", "This weekend"]
     private let quickContextNotes = ["Dog on site", "Gate code needed", "Use side entrance", "Call on arrival", "Heavy bags"]
@@ -189,14 +186,6 @@ struct DonorCreateJobView: View {
                             .clipped()
                             .cornerRadius(10)
                     }
-                    if isAnalyzingPhoto {
-                        ProgressView("Analyzing (optional)...")
-                    }
-                    if let aiSuggestion {
-                        Text(aiSuggestion)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
                 }
                 
                 Section {
@@ -257,7 +246,6 @@ struct DonorCreateJobView: View {
                     if let data = try? await newValue?.loadTransferable(type: Data.self),
                        let image = UIImage(data: data) {
                         bottlePhotoImage = image
-                        await analyzePhotoWithGemini(image)
                     }
                 }
             }
@@ -319,28 +307,6 @@ struct DonorCreateJobView: View {
                 errorMessage = error.localizedDescription
                 showError = true
             }
-        }
-    }
-
-    private func analyzePhotoWithGemini(_ image: UIImage) async {
-        isAnalyzingPhoto = true
-        defer { isAnalyzingPhoto = false }
-        do {
-            async let countTask = geminiService.countBottles(from: image)
-            async let recycleTask = geminiService.classifyRecyclability(from: image)
-            let countResult = try await countTask
-            let recycleResult = try await recycleTask
-            bottleCount = "\(countResult.count)"
-            let materialsText: String
-            if let materials = countResult.materials {
-                materialsText = " • mix P\(materials.plastic)/A\(materials.aluminum)/G\(materials.glass)"
-            } else {
-                materialsText = ""
-            }
-            let estimatedCo2 = ClimateImpactCalculator.co2Saved(bottles: countResult.count)
-            aiSuggestion = "Gemini confidence \(countResult.confidence)%\(materialsText) • \(recycleResult.summary) • estimated climate impact: \(String(format: "%.1f", estimatedCo2)) kg CO₂ diverted."
-        } catch {
-            aiSuggestion = "Gemini estimate unavailable. You can still post and create impact manually."
         }
     }
 
