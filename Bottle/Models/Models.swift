@@ -42,6 +42,7 @@ enum JobStatus: String, Codable {
     case available
     case claimed
     case in_progress
+    case arrived
     case completed
     case cancelled
 }
@@ -236,6 +237,15 @@ struct ImpactStats: Codable {
         case daysHomePowered = "days_home_powered"
         case rankPercentile = "rank_percentile"
     }
+}
+
+// MARK: - Wallet Transaction
+struct WalletTransaction: Codable, Identifiable {
+    let id: String
+    let date: Date
+    let title: String
+    let amount: Double
+    let bottleCount: Int
 }
 
 // MARK: - Mock Data (Hackathon Demo)

@@ -35,6 +35,17 @@ final class MockDataService: ObservableObject {
     
     @Published var currentLocation: CLLocationCoordinate2D?
     
+    private enum StorageKeys {
+        static let availableJobs = "bottlr.availableJobs"
+        static let claimedJobs = "bottlr.claimedJobs"
+        static let completedJobs = "bottlr.completedJobs"
+        static let currentUser = "bottlr.currentUser"
+        static let impactStats = "bottlr.impactStats"
+        static let allUsers = "bottlr.allUsers"
+    }
+    
+    private var simulationTimer: Timer?
+    
     private init() {
         let initialUsers = [
             UserProfile.mockCollector,
@@ -58,7 +69,10 @@ final class MockDataService: ObservableObject {
         self.completedJobs = PickupHistory.mockHistory
         self.impactStats = ImpactStats.mockStats
         self.currentLocation = CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
+        
+        loadPersistedState()
         updateJobDistances()
+        startRealtimeSimulation()
     }
     
     // MARK: - Multi-user demo
@@ -69,6 +83,7 @@ final class MockDataService: ObservableObject {
         demoMode = currentUser.type == .donor ? .donor : .collector
         hasActiveJob = !claimedJobs.contains(where: { $0.claimedBy == currentUser.id })
         canClaimNewJob = !hasActiveJob
+        persistState()
     }
 
     func syncAuthenticatedUser(_ profile: UserProfile) {
@@ -83,6 +98,7 @@ final class MockDataService: ObservableObject {
         demoMode = profile.type == .donor ? .donor : .collector
         hasActiveJob = !claimedJobs.contains(where: { $0.claimedBy == currentUser.id })
         canClaimNewJob = !hasActiveJob
+        persistState()
     }
     
     func resetDemo() {
@@ -93,6 +109,7 @@ final class MockDataService: ObservableObject {
         hasActiveJob = false
         canClaimNewJob = true
         updateJobDistances()
+        persistState()
     }
     
     // MARK: - Job locking and lifecycle
@@ -116,6 +133,7 @@ final class MockDataService: ObservableObject {
         hasActiveJob = true
         canClaimNewJob = false
         HapticManager.shared.notification(.success)
+        persistState()
     }
     
     func releaseJob(_ job: BottleJob) {
@@ -128,6 +146,7 @@ final class MockDataService: ObservableObject {
         hasActiveJob = false
         canClaimNewJob = true
         updateJobDistances()
+        persistState()
     }
     
     func completeJob(
@@ -171,6 +190,7 @@ final class MockDataService: ObservableObject {
         hasActiveJob = false
         canClaimNewJob = true
         HapticManager.shared.notification(.success)
+        persistState()
     }
     
     // MARK: - Donor actions
@@ -212,6 +232,7 @@ final class MockDataService: ObservableObject {
         )
         availableJobs.insert(newJob, at: 0)
         updateJobDistances()
+        persistState()
     }
     
     // MARK: - Location
@@ -251,5 +272,106 @@ final class MockDataService: ObservableObject {
             UIApplication.shared.open(url)
         }
         #endif
+    }
+    
+    // MARK: - Persistence
+    
+    private func persistState() {
+        let encoder = JSONEncoder()
+        if let data = try? encoder.encode(availableJobs) {
+            UserDefaults.standard.set(data, forKey: StorageKeys.availableJobs)
+        }
+        if let data = try? encoder.encode(claimedJobs) {
+            UserDefaults.standard.set(data, forKey: StorageKeys.claimedJobs)
+        }
+        if let data = try? encoder.encode(completedJobs) {
+            UserDefaults.standard.set(data, forKey: StorageKeys.completedJobs)
+        }
+        if let data = try? encoder.encode(currentUser) {
+            UserDefaults.standard.set(data, forKey: StorageKeys.currentUser)
+        }
+        if let data = try? encoder.encode(impactStats) {
+            UserDefaults.standard.set(data, forKey: StorageKeys.impactStats)
+        }
+        if let data = try? encoder.encode(allUsers) {
+            UserDefaults.standard.set(data, forKey: StorageKeys.allUsers)
+        }
+    }
+    
+    private func loadPersistedState() {
+        let decoder = JSONDecoder()
+        if let data = UserDefaults.standard.data(forKey: StorageKeys.availableJobs),
+           let decoded = try? decoder.decode([BottleJob].self, from: data) {
+            availableJobs = decoded
+        }
+        if let data = UserDefaults.standard.data(forKey: StorageKeys.claimedJobs),
+           let decoded = try? decoder.decode([BottleJob].self, from: data) {
+            claimedJobs = decoded
+        }
+        if let data = UserDefaults.standard.data(forKey: StorageKeys.completedJobs),
+           let decoded = try? decoder.decode([PickupHistory].self, from: data) {
+            completedJobs = decoded
+        }
+        if let data = UserDefaults.standard.data(forKey: StorageKeys.currentUser),
+           let decoded = try? decoder.decode(UserProfile.self, from: data) {
+            currentUser = decoded
+        }
+        if let data = UserDefaults.standard.data(forKey: StorageKeys.impactStats),
+           let decoded = try? decoder.decode(ImpactStats.self, from: data) {
+            impactStats = decoded
+        }
+        if let data = UserDefaults.standard.data(forKey: StorageKeys.allUsers),
+           let decoded = try? decoder.decode([UserProfile].self, from: data),
+           !decoded.isEmpty {
+            allUsers = decoded
+        }
+    }
+    
+    // MARK: - Realtime Simulation
+    
+    private func startRealtimeSimulation() {
+        simulationTimer?.invalidate()
+        simulationTimer = Timer.scheduledTimer(withTimeInterval: 18, repeats: true) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.generateRandomJob()
+            }
+        }
+    }
+    
+    private func generateRandomJob() {
+        let titles = ["Mission District Cafe", "SOMA Office Lobby", "Berkeley Student House", "Oakland Corner Store"]
+        let addresses = ["450 Valencia St, SF", "2nd St, SF", "Shattuck Ave, Berkeley", "Grand Ave, Oakland"]
+        let coords = [
+            CLLocationCoordinate2D(latitude: 37.7599, longitude: -122.4148),
+            CLLocationCoordinate2D(latitude: 37.7868, longitude: -122.3998),
+            CLLocationCoordinate2D(latitude: 37.8715, longitude: -122.2730),
+            CLLocationCoordinate2D(latitude: 37.8123, longitude: -122.2442)
+        ]
+        
+        guard Bool.random() else { return }
+        let idx = Int.random(in: 0..<titles.count)
+        let bottleCount = Int.random(in: 20...180)
+        let newJob = BottleJob(
+            id: UUID().uuidString,
+            donorId: "live_donor_\(idx)",
+            title: titles[idx],
+            location: GeoLocation(coordinate: coords[idx]),
+            address: addresses[idx],
+            bottleCount: bottleCount,
+            payout: Double(bottleCount) * 0.1,
+            tier: [.residential, .bulk, .commercial].randomElement() ?? .residential,
+            status: .available,
+            schedule: "Today",
+            notes: "Auto-posted live listing",
+            donorRating: Double.random(in: 4.6...5.0),
+            isRecurring: false,
+            availableTime: "Posted just now",
+            claimedBy: nil,
+            createdAt: Date(),
+            distance: nil
+        )
+        availableJobs.insert(newJob, at: 0)
+        updateJobDistances()
+        persistState()
     }
 }

@@ -148,6 +148,77 @@ class GeminiService {
             notes: aiResult.notes
         )
     }
+
+    // MARK: - Donor Feature: CRV Recyclability Classification
+    func classifyRecyclability(from image: UIImage) async throws -> RecyclabilityResult {
+        guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+            throw GeminiError.imageProcessingFailed
+        }
+        let base64Image = imageData.base64EncodedString()
+
+        let prompt = """
+        You are helping a California bottle redemption app.
+        Determine if the visible items are likely recyclable under CRV.
+
+        Return ONLY valid JSON with this exact schema:
+        {
+          "isRecyclable": true,
+          "estimatedValue": 4.5,
+          "confidence": 0.92,
+          "summary": "short reason"
+        }
+        """
+
+        let requestBody: [String: Any] = [
+            "contents": [
+                [
+                    "parts": [
+                        ["text": prompt],
+                        [
+                            "inline_data": [
+                                "mime_type": "image/jpeg",
+                                "data": base64Image
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            "generationConfig": [
+                "temperature": 0.2,
+                "topK": 32,
+                "topP": 1,
+                "maxOutputTokens": 1024
+            ]
+        ]
+
+        guard let url = URL(string: "\(apiURL)?key=\(apiKey)") else {
+            throw GeminiError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw GeminiError.invalidResponse
+        }
+
+        let geminiResponse = try JSONDecoder().decode(GeminiResponse.self, from: data)
+        guard let text = geminiResponse.candidates.first?.content.parts.first?.text else {
+            throw GeminiError.invalidResponse
+        }
+
+        let cleanText = text
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let jsonData = cleanText.data(using: .utf8) else {
+            throw GeminiError.invalidResponse
+        }
+        return try JSONDecoder().decode(RecyclabilityResult.self, from: jsonData)
+    }
     
     // MARK: - Estimate from Description (Optional)
     func estimateFromDescription(_ description: String) async throws -> Int {
@@ -233,6 +304,13 @@ struct VerificationResult {
             return "⚠️ Count mismatch. Please verify and resubmit."
         }
     }
+}
+
+struct RecyclabilityResult: Codable {
+    let isRecyclable: Bool
+    let estimatedValue: Double
+    let confidence: Double
+    let summary: String
 }
 
 // MARK: - Gemini API Response Structure

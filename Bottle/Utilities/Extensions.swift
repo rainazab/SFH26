@@ -68,6 +68,8 @@ extension Color {
     static let brandGreen = Color(hex: "00C853")
     static let brandGreenLight = Color(hex: "00E676")
     static let brandGreenDark = Color(hex: "00A843")
+    static let brandBlack = Color(hex: "0A0A0A")
+    static let brandWhite = Color(hex: "FEFEFE")
     
     // Tier colors - more vibrant
     static let tierResidential = Color(hex: "4CAF50")

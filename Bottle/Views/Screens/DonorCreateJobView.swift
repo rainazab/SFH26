@@ -5,10 +5,12 @@
 
 import SwiftUI
 import MapKit
+import PhotosUI
+import UIKit
 
 struct DonorCreateJobView: View {
     @Environment(\.dismiss) var dismiss
-    @StateObject private var mockData = MockDataService.shared
+    @StateObject private var dataService = DataService.shared
     
     @State private var title = ""
     @State private var address = ""
@@ -21,11 +23,18 @@ struct DonorCreateJobView: View {
     @State private var searchText = ""
     @State private var results: [MKMapItem] = []
     @State private var coordinate: CLLocationCoordinate2D?
+    @State private var selectedLocationResult: LocationSearchResult?
     @State private var isSearching = false
+    @State private var showLocationSearchSheet = false
     
     @State private var isSubmitting = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var photoImage: UIImage?
+    @State private var aiSuggestion: String?
+    @State private var isAnalyzingPhoto = false
+    private let geminiService = GeminiService()
     
     var body: some View {
         NavigationView {
@@ -42,6 +51,9 @@ struct DonorCreateJobView: View {
                 }
                 
                 Section("Location") {
+                    Button("Open Location Search") {
+                        showLocationSearchSheet = true
+                    }
                     TextField("Search address", text: $searchText)
                         .onChange(of: searchText) { _, _ in searchLocation() }
                     if isSearching {
@@ -64,6 +76,20 @@ struct DonorCreateJobView: View {
                     Toggle("Recurring", isOn: $isRecurring)
                     TextField("Notes", text: $notes, axis: .vertical)
                         .lineLimit(3...5)
+                }
+
+                Section("AI Estimate (Optional)") {
+                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                        Label("Add bottle photo", systemImage: "camera.fill")
+                    }
+                    if isAnalyzingPhoto {
+                        ProgressView("Analyzing with Gemini...")
+                    }
+                    if let aiSuggestion {
+                        Text(aiSuggestion)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 
                 Section {
@@ -89,6 +115,25 @@ struct DonorCreateJobView: View {
                 Button("OK") {}
             } message: {
                 Text(errorMessage)
+            }
+            .sheet(isPresented: $showLocationSearchSheet) {
+                LocationSearchView(selectedLocation: $selectedLocationResult)
+            }
+            .onChange(of: selectedLocationResult) { _, newValue in
+                guard let newValue else { return }
+                coordinate = newValue.coordinate
+                address = newValue.address
+                searchText = newValue.name
+                results = []
+            }
+            .onChange(of: selectedPhoto) { _, newValue in
+                Task {
+                    if let data = try? await newValue?.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        photoImage = image
+                        await analyzePhotoWithGemini(image)
+                    }
+                }
             }
         }
     }
@@ -133,15 +178,16 @@ struct DonorCreateJobView: View {
         isSubmitting = true
         Task {
             do {
-                try await mockData.createDonorJob(
+                try await dataService.createJob(
                     title: title,
                     address: address,
-                    coordinate: coordinate,
+                    location: GeoLocation(coordinate: coordinate),
                     bottleCount: count,
                     schedule: schedule,
                     notes: notes,
                     isRecurring: isRecurring,
-                    tier: tier
+                    tier: tier,
+                    availableTime: schedule
                 )
                 isSubmitting = false
                 dismiss()
@@ -150,6 +196,21 @@ struct DonorCreateJobView: View {
                 errorMessage = error.localizedDescription
                 showError = true
             }
+        }
+    }
+
+    private func analyzePhotoWithGemini(_ image: UIImage) async {
+        isAnalyzingPhoto = true
+        defer { isAnalyzingPhoto = false }
+        do {
+            async let countTask = geminiService.countBottles(from: image)
+            async let recycleTask = geminiService.classifyRecyclability(from: image)
+            let countResult = try await countTask
+            let recycleResult = try await recycleTask
+            bottleCount = "\(countResult.count)"
+            aiSuggestion = "Gemini: \(recycleResult.summary) • CRV likely: \(recycleResult.isRecyclable ? "Yes" : "No") • est. value: $\(String(format: "%.2f", recycleResult.estimatedValue))."
+        } catch {
+            aiSuggestion = "Gemini estimate unavailable. You can still post manually."
         }
     }
 }

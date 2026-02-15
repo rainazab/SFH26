@@ -11,7 +11,7 @@ import UIKit
 
 struct CompletePickupView: View {
     @Environment(\.dismiss) var dismiss
-    @StateObject private var mockData = MockDataService.shared
+    @StateObject private var dataService = DataService.shared
     
     let job: BottleJob
     
@@ -40,7 +40,7 @@ struct CompletePickupView: View {
                         Text("Estimated redemption value: $\(String(format: "%.2f", job.payout))")
                             .font(.subheadline)
                             .foregroundColor(.brandGreen)
-                        Text("Value is redeemed at local recycling centers, not paid through BOTTLR.")
+                        Text("Value is redeemed at local recycling centers, not paid through bottlr.")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
@@ -127,7 +127,7 @@ struct CompletePickupView: View {
                     .disabled(!canSubmit)
 
                     Button(action: {
-                        mockData.openNearbyRecyclingCenters()
+                        dataService.openNearbyRecyclingCenters()
                     }) {
                         HStack {
                             Image(systemName: "map.fill")
@@ -191,7 +191,7 @@ struct CompletePickupView: View {
         isSubmitting = true
         Task {
             do {
-                try await mockData.completeJob(job, bottleCount: count, aiVerified: aiCount != nil)
+                try await dataService.completeJob(job, bottleCount: count, aiVerified: aiCount != nil)
                 isSubmitting = false
                 dismiss()
             } catch {

@@ -11,12 +11,12 @@ import CoreLocation
 struct MainTabView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var locationService: LocationService
-    @StateObject private var mockData = MockDataService.shared
+    @StateObject private var dataService = DataService.shared
     @State private var selectedTab = 0
     @State private var showLocationPrompt = false
     
     private var userType: UserType {
-        mockData.currentUser.type
+        dataService.currentUser?.type ?? .collector
     }
     
     var body: some View {
@@ -82,7 +82,7 @@ struct MainTabView: View {
         }
         .onChange(of: locationService.userLocation) { _, location in
             if let coordinate = location?.coordinate {
-                mockData.updateLocation(coordinate)
+                dataService.updateJobDistances(from: coordinate)
             }
         }
         .alert("Enable Location", isPresented: $showLocationPrompt) {
@@ -91,7 +91,7 @@ struct MainTabView: View {
                 locationService.requestPermission()
             }
         } message: {
-            Text("BOTTLR uses your location to show nearby jobs and sort pickups around you.")
+            Text("bottlr uses your location to show nearby jobs and sort pickups around you.")
         }
         .sheet(isPresented: $authService.shouldPromptRoleSelection) {
             RoleSelectionView { selectedType in
@@ -107,7 +107,7 @@ struct RoleSelectionView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 20) {
-                Text("How will you use BOTTLR?")
+                Text("How will you use bottlr?")
                     .font(.title2)
                     .fontWeight(.bold)
                     .multilineTextAlignment(.center)

@@ -16,7 +16,7 @@ struct WelcomeView: View {
     let pages: [(icon: String, title: String, subtitle: String, color: String)] = [
         (
             icon: "waterbottle.fill",
-            title: "BOTTLR: Bottles Into Cash",
+            title: "bottlr: Bottles Into Cash",
             subtitle: "Coordinate bottle pickups fast and keep recyclable material out of landfill.",
             color: "00C853"
         ),

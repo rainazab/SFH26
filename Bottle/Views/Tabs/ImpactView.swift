@@ -9,8 +9,8 @@ import SwiftUI
 import Charts
 
 struct ImpactView: View {
-    @StateObject private var mockData = MockDataService.shared
-    private var impactStats: ImpactStats { mockData.impactStats }
+    @StateObject private var dataService = DataService.shared
+    private var impactStats: ImpactStats { dataService.impactStats }
     
     var body: some View {
         NavigationView {

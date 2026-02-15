@@ -11,11 +11,13 @@ import MapKit
 struct JobDetailView: View {
     let job: BottleJob
     @Environment(\.dismiss) var dismiss
-    @StateObject private var mockData = MockDataService.shared
+    @EnvironmentObject var locationService: LocationService
+    @StateObject private var dataService = DataService.shared
     @State private var showingClaimSuccess = false
     @State private var showingError = false
     @State private var errorMessage = ""
     @State private var isClaiming = false
+    @State private var etaText = "Calculating..."
     
     var body: some View {
         NavigationView {
@@ -86,6 +88,7 @@ struct JobDetailView: View {
                         InfoRow(icon: "calendar", title: "Schedule", value: job.schedule)
                         InfoRow(icon: "clock", title: "Available", value: job.availableTime)
                         InfoRow(icon: "location", title: "Distance", value: String(format: "%.1f mi", job.distance ?? 0))
+                        InfoRow(icon: "car.fill", title: "ETA", value: etaText)
                         
                         if job.isRecurring {
                             HStack {
@@ -159,10 +162,10 @@ struct JobDetailView: View {
                                 .foregroundColor(.white)
                                 .cornerRadius(15)
                             }
-                            .disabled(isClaiming || !mockData.canClaimNewJob)
+                            .disabled(isClaiming || !dataService.canClaimNewJob)
                             
                             Button(action: {
-                                mockData.startNavigation(to: job)
+                                dataService.startNavigation(to: job)
                             }) {
                                 HStack {
                                     Image(systemName: "location.fill")
@@ -221,6 +224,9 @@ struct JobDetailView: View {
         } message: {
             Text(errorMessage)
         }
+        .task {
+            await calculateETA()
+        }
     }
     
     func tierColor(_ tier: JobTier) -> Color {
@@ -235,7 +241,7 @@ struct JobDetailView: View {
         isClaiming = true
         Task {
             do {
-                try await mockData.claimJob(job)
+                try await dataService.claimJob(job)
                 await MainActor.run {
                     isClaiming = false
                     showingClaimSuccess = true
@@ -247,6 +253,19 @@ struct JobDetailView: View {
                     showingError = true
                 }
             }
+        }
+    }
+
+    private func calculateETA() async {
+        guard let current = locationService.userLocation?.coordinate else {
+            etaText = "Need location"
+            return
+        }
+        if let eta = await dataService.estimatedTravelTime(to: job.coordinate, from: current) {
+            let mins = Int(eta / 60.0)
+            etaText = "\(mins) min drive"
+        } else {
+            etaText = "Unavailable"
         }
     }
 }
@@ -274,4 +293,5 @@ struct InfoRow: View {
 
 #Preview {
     JobDetailView(job: SampleData.shared.jobs[0])
+        .environmentObject(LocationService())
 }

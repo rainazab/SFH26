@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct DonorHomeView: View {
-    @StateObject private var mockData = MockDataService.shared
+    @StateObject private var dataService = DataService.shared
     @State private var bottleCount = ""
     @State private var selectedTimeframe = "This weekend"
     @State private var showingPostSuccess = false
@@ -127,8 +127,8 @@ struct DonorHomeView: View {
                             .foregroundColor(.secondary)
                         
                         HStack(spacing: 20) {
-                            ImpactStat(icon: "cylinder.fill", value: "\(mockData.impactStats.totalBottles)", label: "bottles donated", color: Color(hex: "00C853"))
-                            ImpactStat(icon: "dollarsign.circle.fill", value: "$\(Int(mockData.impactStats.totalEarnings))", label: "est. redemption value", color: Color(hex: "FF9800"))
+                            ImpactStat(icon: "cylinder.fill", value: "\(dataService.impactStats.totalBottles)", label: "bottles donated", color: Color(hex: "00C853"))
+                            ImpactStat(icon: "dollarsign.circle.fill", value: "$\(Int(dataService.impactStats.totalEarnings))", label: "est. redemption value", color: Color(hex: "FF9800"))
                         }
                         
                         HStack(spacing: 20) {
@@ -143,12 +143,12 @@ struct DonorHomeView: View {
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                             Spacer()
-                            Text("\(max(mockData.impactStats.totalBottles + 80, 500)) bottles")
+                            Text("\(max(dataService.impactStats.totalBottles + 80, 500)) bottles")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
                         
-                        ProgressView(value: Double(mockData.impactStats.totalBottles), total: Double(max(mockData.impactStats.totalBottles + 80, 500)))
+                        ProgressView(value: Double(dataService.impactStats.totalBottles), total: Double(max(dataService.impactStats.totalBottles + 80, 500)))
                             .tint(Color(hex: "00C853"))
                         
                         Text("🏆 Unlock \"Oakland Hero\" badge")

@@ -10,7 +10,7 @@ import MapKit
 
 struct MapView: View {
     @EnvironmentObject var locationService: LocationService
-    @StateObject private var mockData = MockDataService.shared
+    @StateObject private var dataService = DataService.shared
     @State private var position: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
@@ -24,7 +24,7 @@ struct MapView: View {
     @State private var todayEarnings: Double = 0
     @State private var showNewJobToast = false
 
-    private var jobs: [BottleJob] { mockData.availableJobs }
+    private var jobs: [BottleJob] { dataService.availableJobs }
     
     var nearestHighValueJob: BottleJob? {
         jobs.filter({ $0.payout > 30 }).min(by: { ($0.distance ?? 0) < ($1.distance ?? 0) })
@@ -34,6 +34,9 @@ struct MapView: View {
         ZStack {
             // Map
             Map(position: $position) {
+                // Built-in user location marker (blue dot style)
+                UserAnnotation()
+
                 ForEach(jobs) { job in
                     Annotation(job.title, coordinate: job.coordinate) {
                         Button(action: {
@@ -134,7 +137,7 @@ struct MapView: View {
                                     .foregroundColor(.green)
                             }
                             
-                            Text("\(mockData.completedJobs.reduce(0) { $0 + $1.bottleCount })")
+                            Text("\(dataService.completedJobs.reduce(0) { $0 + $1.bottleCount })")
                                 .font(.title2)
                                 .fontWeight(.semibold)
                             Text("BOTTLES VERIFIED")
@@ -232,10 +235,12 @@ struct MapView: View {
         .sheet(isPresented: $showingJobDetail) {
             if let job = selectedJob {
                 JobDetailView(job: job)
+                    .environmentObject(locationService)
             }
         }
         .onAppear {
             if let userLocation = locationService.userLocation?.coordinate {
+                dataService.updateJobDistances(from: userLocation)
                 position = .region(
                     MKCoordinateRegion(
                         center: userLocation,
@@ -243,7 +248,7 @@ struct MapView: View {
                     )
                 )
             }
-            todayEarnings = Double(mockData.completedJobs.filter {
+            todayEarnings = Double(dataService.completedJobs.filter {
                 Calendar.current.isDateInToday($0.date)
             }.reduce(0) { $0 + $1.bottleCount })
             // Simulate new job appearing for demo
@@ -256,6 +261,7 @@ struct MapView: View {
         }
         .onChange(of: locationService.userLocation) { _, location in
             if let location {
+                dataService.updateJobDistances(from: location.coordinate)
                 let region = MKCoordinateRegion(
                     center: location.coordinate,
                     span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)

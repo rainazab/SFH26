@@ -9,6 +9,7 @@ import SwiftUI
 
 struct LoginView: View {
     @EnvironmentObject var authService: AuthService
+    @Environment(\.colorScheme) var colorScheme
     
     enum Field {
         case phone
@@ -26,7 +27,9 @@ struct LoginView: View {
         ZStack {
             // Full-bleed background
             LinearGradient(
-                colors: [Color.brandGreen, Color.brandGreenLight],
+                colors: colorScheme == .dark
+                    ? [Color.brandBlack, Color.brandGreenDark]
+                    : [Color.brandGreen, Color.brandGreenLight],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -44,7 +47,7 @@ struct LoginView: View {
                                 .scaledToFit()
                                 .frame(width: 140, height: 140)
                             
-                            Text("BOTTLR")
+                            Text("bottlr")
                                 .font(.system(size: 40, weight: .bold))
                                 .foregroundColor(.white)
                             
@@ -65,7 +68,7 @@ struct LoginView: View {
                             .foregroundColor(.white)
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.red.opacity(0.3))
+                            .background(Color.red.opacity(colorScheme == .dark ? 0.45 : 0.3))
                             .cornerRadius(10)
                         }
                         
@@ -78,7 +81,7 @@ struct LoginView: View {
                                     .foregroundColor(.white.opacity(0.8))
                                 
                                 TextField("+1 555 123 4567", text: $phoneNumber)
-                                    .textFieldStyle(CustomTextFieldStyle())
+                                    .textFieldStyle(CustomTextFieldStyle(colorScheme: colorScheme))
                                     .keyboardType(.phonePad)
                                     .focused($focusedField, equals: .phone)
                             }
@@ -91,7 +94,7 @@ struct LoginView: View {
                                         .foregroundColor(.white.opacity(0.8))
                                     
                                     TextField("123456", text: $verificationCode)
-                                        .textFieldStyle(CustomTextFieldStyle())
+                                        .textFieldStyle(CustomTextFieldStyle(colorScheme: colorScheme))
                                         .keyboardType(.numberPad)
                                         .focused($focusedField, equals: .code)
                                 }
@@ -137,9 +140,12 @@ struct LoginView: View {
                             }
                             .padding(.vertical, 4)
                             
-                            GoogleSignInButton {
-                                handleGoogleSignIn()
-                            }
+                            GoogleSignInButton(
+                                action: {
+                                    handleGoogleSignIn()
+                                },
+                                colorScheme: colorScheme
+                            )
                             .disabled(isLoading)
                         }
                         
@@ -156,7 +162,7 @@ struct LoginView: View {
             }
             
             if isLoading {
-                Color.black.opacity(0.3)
+                Color.black.opacity(colorScheme == .dark ? 0.45 : 0.3)
                     .ignoresSafeArea()
                     .allowsHitTesting(true)
             }
@@ -576,15 +582,17 @@ struct UserTypeButton: View {
 }
 
 struct CustomTextFieldStyle: TextFieldStyle {
+    let colorScheme: ColorScheme
+
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .padding()
-            .background(Color.white.opacity(0.25))
+            .background(colorScheme == .dark ? Color.white.opacity(0.14) : Color.white.opacity(0.25))
             .foregroundColor(.white)
             .cornerRadius(10)
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color.white.opacity(0.4), lineWidth: 1)
+                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.5 : 0.4), lineWidth: 1)
             )
             .accentColor(.white)
     }
@@ -594,6 +602,7 @@ struct CustomTextFieldStyle: TextFieldStyle {
 
 struct GoogleSignInButton: View {
     let action: () -> Void
+    let colorScheme: ColorScheme
     
     var body: some View {
         Button(action: action) {
@@ -608,10 +617,14 @@ struct GoogleSignInButton: View {
             }
             .frame(maxWidth: .infinity)
             .padding()
-            .background(Color.white)
-            .foregroundColor(.black)
+            .background(colorScheme == .dark ? Color(.secondarySystemBackground) : Color.white)
+            .foregroundColor(colorScheme == .dark ? .white : .black)
             .cornerRadius(15)
-            .shadow(color: Color.black.opacity(0.1), radius: 5, y: 2)
+            .overlay(
+                RoundedRectangle(cornerRadius: 15)
+                    .stroke(colorScheme == .dark ? Color.white.opacity(0.25) : Color.black.opacity(0.08), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.1), radius: 5, y: 2)
         }
     }
 }

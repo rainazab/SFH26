@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ActivityView: View {
-    @StateObject private var mockData = MockDataService.shared
+    @StateObject private var dataService = DataService.shared
     @State private var selectedFilter: ActivityFilter = .all
     @State private var selectedClaimedJob: BottleJob?
     @State private var showingCompletePickup = false
@@ -21,16 +21,16 @@ struct ActivityView: View {
     }
 
     private var totalCompleted: Int {
-        mockData.completedJobs.count
+        dataService.completedJobs.count
     }
 
     private var totalBottles: Int {
-        mockData.completedJobs.reduce(0) { $0 + $1.bottleCount }
+        dataService.completedJobs.reduce(0) { $0 + $1.bottleCount }
     }
 
     private var todayCompleted: Int {
         let cal = Calendar.current
-        return mockData.completedJobs.filter { cal.isDateInToday($0.date) }.count
+        return dataService.completedJobs.filter { cal.isDateInToday($0.date) }.count
     }
     
     var body: some View {
@@ -87,8 +87,8 @@ struct ActivityView: View {
                 // Activity List
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        if !mockData.claimedJobs.isEmpty {
-                            ForEach(mockData.claimedJobs) { job in
+                        if !dataService.myClaimedJobs.isEmpty {
+                            ForEach(dataService.myClaimedJobs) { job in
                                 ClaimedJobCard(job: job) {
                                     selectedClaimedJob = job
                                     showingCompletePickup = true
@@ -97,7 +97,7 @@ struct ActivityView: View {
                             }
                         }
                         
-                        ForEach(mockData.completedJobs) { pickup in
+                        ForEach(dataService.completedJobs) { pickup in
                             ActivityCard(pickup: pickup)
                             Divider()
                                 .padding(.leading, 80)

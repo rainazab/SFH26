@@ -9,12 +9,12 @@ import SwiftUI
 
 struct ProfileView: View {
     @EnvironmentObject var authService: AuthService
-    @StateObject private var mockData = MockDataService.shared
+    @StateObject private var dataService = DataService.shared
     @State private var logoTapCount = 0
     @State private var showDemoPanel = false
     
     private var profile: UserProfile {
-        mockData.currentUser
+        dataService.currentUser ?? UserProfile.mockCollector
     }
     
     var body: some View {
@@ -98,7 +98,7 @@ struct ProfileView: View {
                     
                     // About Section
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("ABOUT BOTTLR")
+                        Text("ABOUT bottlr")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         

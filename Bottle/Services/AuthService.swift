@@ -183,6 +183,26 @@ class AuthService: ObservableObject {
         shouldPromptRoleSelection = false
     }
     
+    func completeOnboarding(name: String, userType: UserType) {
+        guard var user = currentUser else { return }
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        user = UserProfile(
+            id: user.id,
+            name: trimmedName.isEmpty ? user.name : trimmedName,
+            email: user.email,
+            type: userType,
+            rating: user.rating,
+            totalBottles: user.totalBottles,
+            totalEarnings: user.totalEarnings,
+            joinDate: user.joinDate,
+            badges: user.badges,
+            fcmToken: user.fcmToken,
+            profilePhotoUrl: user.profilePhotoUrl
+        )
+        currentUser = user
+        MockDataService.shared.syncAuthenticatedUser(user)
+    }
+    
     // MARK: - Sign Out
     func signOut() throws {
         do {

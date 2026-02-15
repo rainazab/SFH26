@@ -8,7 +8,8 @@
 import SwiftUI
 
 struct JobListView: View {
-    @StateObject private var mockData = MockDataService.shared
+    @StateObject private var dataService = DataService.shared
+    @EnvironmentObject var locationService: LocationService
     @State private var searchText = ""
     @State private var selectedTier: JobTier? = nil
     @State private var showingFilters = false
@@ -19,7 +20,7 @@ struct JobListView: View {
     @Environment(\.colorScheme) var colorScheme
     
     var filteredJobs: [BottleJob] {
-        mockData.availableJobs.filter { job in
+        dataService.availableJobs.filter { job in
             (selectedTier == nil || job.tier == selectedTier) &&
             job.payout >= minEstimatedValue &&
             (job.distance ?? 0) <= maxDistance &&
@@ -31,7 +32,7 @@ struct JobListView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                if mockData.hasActiveJob {
+                if dataService.hasActiveJob {
                     Text("Complete your current pickup before claiming another job.")
                         .font(.caption)
                         .foregroundColor(.white)
@@ -125,10 +126,10 @@ struct JobListView: View {
                         ForEach(filteredJobs) { job in
                             JobCard(
                                 job: job,
-                                canClaim: mockData.canClaimNewJob
+                                canClaim: dataService.canClaimNewJob
                             ) {
                                 Task {
-                                    try? await mockData.claimJob(job)
+                                    try? await dataService.claimJob(job)
                                 }
                             }
                                 .onTapGesture {
@@ -148,6 +149,7 @@ struct JobListView: View {
             .sheet(isPresented: $showingJobDetail) {
                 if let job = selectedJob {
                     JobDetailView(job: job)
+                        .environmentObject(locationService)
                 }
             }
         }
@@ -314,4 +316,5 @@ struct FiltersView: View {
 
 #Preview {
     JobListView()
+        .environmentObject(LocationService())
 }

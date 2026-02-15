@@ -60,7 +60,7 @@ struct BottleApp: App {
     
     @StateObject private var authService = AuthService()
     @StateObject private var locationService = LocationService()
-    @AppStorage("hasSeenWelcome") private var hasSeenWelcome = false
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     
     var body: some Scene {
         WindowGroup {
@@ -68,21 +68,18 @@ struct BottleApp: App {
                 if authService.isLoading {
                     // Loading state
                     LoadingView()
-                } else if !hasSeenWelcome {
-                    // Onboarding
-                    WelcomeView(showWelcome: .constant(true))
-                        .onAppear {
-                            hasSeenWelcome = true
-                        }
+                } else if !authService.isAuthenticated {
+                    // Login
+                    LoginView()
+                        .environmentObject(authService)
+                } else if !hasCompletedOnboarding {
+                    OnboardingView()
+                        .environmentObject(authService)
                 } else if authService.isAuthenticated {
                     // Main app
                     MainTabView()
                         .environmentObject(authService)
                         .environmentObject(locationService)
-                } else {
-                    // Login
-                    LoginView()
-                        .environmentObject(authService)
                 }
             }
         }
@@ -92,11 +89,15 @@ struct BottleApp: App {
 // MARK: - Loading View
 
 struct LoadingView: View {
+    @Environment(\.colorScheme) var colorScheme
+
     var body: some View {
         GeometryReader { geo in
             ZStack {
                 LinearGradient(
-                    colors: [Color.brandGreen, Color.brandGreenLight],
+                    colors: colorScheme == .dark
+                        ? [Color.brandBlack, Color.brandGreenDark]
+                        : [Color.brandGreen, Color.brandGreenLight],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
