@@ -70,20 +70,24 @@ struct BottleApp: App {
 struct LoadingView: View {
     var body: some View {
         ZStack {
-            Color(.systemBackground)
+            LinearGradient(
+                colors: [Color.brandGreen, Color.brandGreenLight],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
                 .ignoresSafeArea()
             
             VStack(spacing: 20) {
                 Image(systemName: "waterbottle.fill")
                     .font(.system(size: 60))
-                    .foregroundColor(.brandGreen)
+                    .foregroundColor(.white)
                 
                 Text("BOTTLE")
                     .font(.system(size: 32, weight: .bold))
-                    .foregroundColor(.brandGreen)
+                    .foregroundColor(.white)
                 
                 ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: .brandGreen))
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
             }
         }
     }

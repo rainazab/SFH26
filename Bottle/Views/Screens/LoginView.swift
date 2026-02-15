@@ -9,31 +9,41 @@ import SwiftUI
 
 struct LoginView: View {
     @EnvironmentObject var authService: AuthService
+    
+    enum Field {
+        case email
+        case password
+    }
+    
     @State private var email = ""
     @State private var password = ""
     @State private var isLoading = false
     @State private var showingError = false
     @State private var showingSignUp = false
     @State private var showingForgotPassword = false
+    @FocusState private var focusedField: Field?
     
     var body: some View {
-        NavigationView {
-            ZStack {
-                // Background gradient
-                LinearGradient(
-                    colors: [Color.brandGreen, Color.brandGreenLight],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
-                
-                ScrollView {
-                    VStack(spacing: 32) {
-                        // Logo and welcome
+        ZStack {
+            // Full-bleed background
+            LinearGradient(
+                colors: [Color.brandGreen, Color.brandGreenLight],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            
+            GeometryReader { geo in
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 24) {
+                        Spacer(minLength: 40)
+                        
+                        // Hero
                         VStack(spacing: 16) {
-                            Image(systemName: "waterbottle.fill")
-                                .font(.system(size: 80))
-                                .foregroundColor(.white)
+                            Image("logo")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 140, height: 140)
                             
                             Text("BOTTLE")
                                 .font(.system(size: 48, weight: .bold))
@@ -43,11 +53,9 @@ struct LoginView: View {
                                 .font(.title3)
                                 .foregroundColor(.white.opacity(0.9))
                         }
-                        .padding(.top, 60)
                         
                         // Login form
-                        VStack(spacing: 20) {
-                            // Email field
+                        VStack(spacing: 16) {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Email")
                                     .font(.subheadline)
@@ -58,9 +66,9 @@ struct LoginView: View {
                                     .textFieldStyle(CustomTextFieldStyle())
                                     .textInputAutocapitalization(.never)
                                     .keyboardType(.emailAddress)
+                                    .focused($focusedField, equals: .email)
                             }
                             
-                            // Password field
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Password")
                                     .font(.subheadline)
@@ -69,9 +77,9 @@ struct LoginView: View {
                                 
                                 SecureField("", text: $password)
                                     .textFieldStyle(CustomTextFieldStyle())
+                                    .focused($focusedField, equals: .password)
                             }
                             
-                            // Forgot password
                             Button("Forgot Password?") {
                                 showingForgotPassword = true
                             }
@@ -79,7 +87,6 @@ struct LoginView: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity, alignment: .trailing)
                             
-                            // Login button
                             Button(action: handleLogin) {
                                 HStack {
                                     if isLoading {
@@ -97,9 +104,8 @@ struct LoginView: View {
                                 .cornerRadius(15)
                             }
                             .disabled(isLoading || email.isEmpty || password.isEmpty)
-                            .padding(.top, 8)
+                            .padding(.top, 4)
                             
-                            // OR divider
                             HStack {
                                 Rectangle()
                                     .frame(height: 1)
@@ -114,17 +120,14 @@ struct LoginView: View {
                                     .frame(height: 1)
                                     .foregroundColor(.white.opacity(0.3))
                             }
-                            .padding(.vertical, 8)
+                            .padding(.vertical, 4)
                             
-                            // Google Sign In button
                             GoogleSignInButton {
                                 handleGoogleSignIn()
                             }
                             .disabled(isLoading)
                         }
-                        .padding(.horizontal, 32)
                         
-                        // Sign up prompt
                         VStack(spacing: 12) {
                             Text("Don't have an account?")
                                 .foregroundColor(.white.opacity(0.8))
@@ -139,23 +142,31 @@ struct LoginView: View {
                             .foregroundColor(.brandGreen)
                             .cornerRadius(25)
                         }
-                        .padding(.top, 16)
+                        
+                        Spacer(minLength: 16)
+                    }
+                    .frame(minHeight: geo.size.height)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 20)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        focusedField = nil
                     }
                 }
             }
-            .alert("Error", isPresented: $showingError) {
-                Button("OK") { }
-            } message: {
-                Text(authService.errorMessage ?? "An error occurred")
-            }
-            .sheet(isPresented: $showingSignUp) {
-                SignUpView()
-                    .environmentObject(authService)
-            }
-            .sheet(isPresented: $showingForgotPassword) {
-                ForgotPasswordView()
-                    .environmentObject(authService)
-            }
+        }
+        .alert("Error", isPresented: $showingError) {
+            Button("OK") { }
+        } message: {
+            Text(authService.errorMessage ?? "An error occurred")
+        }
+        .sheet(isPresented: $showingSignUp) {
+            SignUpView()
+                .environmentObject(authService)
+        }
+        .sheet(isPresented: $showingForgotPassword) {
+            ForgotPasswordView()
+                .environmentObject(authService)
         }
     }
     

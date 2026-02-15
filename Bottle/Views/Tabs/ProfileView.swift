@@ -8,8 +8,11 @@
 import SwiftUI
 
 struct ProfileView: View {
-    let userType: UserType
-    let profile = SampleData.shared.collectorProfile
+    @EnvironmentObject var authService: AuthService
+    
+    private var profile: UserProfile {
+        authService.currentUser ?? SampleData.shared.collectorProfile
+    }
     
     var body: some View {
         NavigationView {
@@ -125,7 +128,13 @@ struct ProfileView: View {
                     .padding()
                     
                     // Sign Out
-                    Button(action: {}) {
+                    Button(action: {
+                        do {
+                            try authService.signOut()
+                        } catch {
+                            // Keep UX simple in demo mode; authService publishes state.
+                        }
+                    }) {
                         Text("Sign Out")
                             .fontWeight(.semibold)
                             .foregroundColor(.red)
@@ -219,5 +228,6 @@ struct AboutRow: View {
 }
 
 #Preview {
-    ProfileView(userType: .collector)
+    ProfileView()
+        .environmentObject(AuthService())
 }
