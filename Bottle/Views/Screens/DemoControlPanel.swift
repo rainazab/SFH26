@@ -11,6 +11,7 @@ struct DemoControlPanel: View {
     @EnvironmentObject var dataService: DataService
     @State private var useMockData = AppConfig.useMockData
     @State private var aiEnabled = AppConfig.aiVerificationEnabled
+    @State private var aiUseRealModel = AppConfig.aiUseRealModel
     @State private var climateAnimations = AppConfig.climateAnimationEnabled
     
     var body: some View {
@@ -77,6 +78,10 @@ struct DemoControlPanel: View {
                     Toggle("AI Verification Enabled", isOn: $aiEnabled)
                         .onChange(of: aiEnabled) { _, value in
                             AppConfig.aiVerificationEnabled = value
+                        }
+                    Toggle("Use Real Gemini AI", isOn: $aiUseRealModel)
+                        .onChange(of: aiUseRealModel) { _, value in
+                            AppConfig.aiUseRealModel = value
                         }
                     Toggle("Climate Animations", isOn: $climateAnimations)
                         .onChange(of: climateAnimations) { _, value in

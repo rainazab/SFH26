@@ -17,6 +17,7 @@ struct ProfileView: View {
     @State private var selectedProfilePhoto: PhotosPickerItem?
     @State private var pendingProfileImage: UIImage?
     @State private var isUploadingProfilePhoto = false
+    @State private var versionTapCount = 0
     
     private var profile: UserProfile {
         dataService.currentUser ?? UserProfile.mockCollector
@@ -231,6 +232,13 @@ struct ProfileView: View {
                         Text("Version 1.0.0")
                             .font(.caption2)
                             .foregroundColor(.secondary)
+                            .onTapGesture {
+                                versionTapCount += 1
+                                if versionTapCount >= 5 {
+                                    versionTapCount = 0
+                                    showDemoPanel = true
+                                }
+                            }
                         
                         Text("Made with ♻️ in San Francisco")
                             .font(.caption2)
@@ -479,16 +487,11 @@ struct EditProfilePanel: View {
 }
 
 struct SettingsPanel: View {
-    @AppStorage("bottlr.settings.aiEnabled") private var aiEnabled = AppConfig.aiVerificationEnabled
     @AppStorage("bottlr.settings.climateAnimations") private var climateAnimations = AppConfig.climateAnimationEnabled
 
     var body: some View {
         Form {
             Section("App") {
-                Toggle("Enable AI Verification", isOn: $aiEnabled)
-                    .onChange(of: aiEnabled) { _, value in
-                        AppConfig.aiVerificationEnabled = value
-                    }
                 Toggle("Enable Climate Animations", isOn: $climateAnimations)
                     .onChange(of: climateAnimations) { _, value in
                         AppConfig.climateAnimationEnabled = value

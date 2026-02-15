@@ -8,6 +8,7 @@ import Foundation
 enum AppConfig {
     private static let mockModeKey = "app.useMockData"
     private static let aiEnabledKey = "app.aiVerificationEnabled"
+    private static let aiUseRealModelKey = "app.aiUseRealModel"
     private static let climateAnimationKey = "app.climateAnimationEnabled"
 
     static var useMockData: Bool {
@@ -21,6 +22,11 @@ enum AppConfig {
             return UserDefaults.standard.bool(forKey: aiEnabledKey)
         }
         set { UserDefaults.standard.set(newValue, forKey: aiEnabledKey) }
+    }
+
+    static var aiUseRealModel: Bool {
+        get { UserDefaults.standard.bool(forKey: aiUseRealModelKey) }
+        set { UserDefaults.standard.set(newValue, forKey: aiUseRealModelKey) }
     }
 
     static var climateAnimationEnabled: Bool {

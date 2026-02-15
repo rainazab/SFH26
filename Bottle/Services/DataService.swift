@@ -1269,15 +1269,18 @@ private extension DataService {
         let jobRef = db.collection("jobs").document(jobId)
         let collectorRef = db.collection("users").document(collectorId)
         let now = Date()
+        // Always persist host feedback on the post itself first.
+        try await jobRef.setData([
+            "pickedInDaytime": pickedInDaytime,
+            "collectorRatingByHost": collectorRating,
+            "hostFeedbackUpdatedAt": Timestamp(date: now)
+        ], merge: true)
 
-        _ = try await db.runTransaction { transaction, _ in
-            let collectorSnap: DocumentSnapshot
-            do {
-                collectorSnap = try transaction.getDocument(collectorRef)
-            } catch {
-                return nil
-            }
-
+        // Best effort collector aggregate update. Some Firestore rulesets allow
+        // host-owned post updates but block direct writes to another user's doc.
+        // In that case, don't fail host feedback submission.
+        do {
+            let collectorSnap = try await collectorRef.getDocument()
             let prevRating = (collectorSnap.data()?["rating"] as? Double)
                 ?? (collectorSnap.data()?["rating"] as? NSNumber)?.doubleValue
                 ?? 4.5
@@ -1287,22 +1290,27 @@ private extension DataService {
             let newReviewCount = prevReviewCount + 1
             let newRating = ((prevRating * Double(prevReviewCount)) + Double(collectorRating)) / Double(max(newReviewCount, 1))
 
-            transaction.setData([
-                "pickedInDaytime": pickedInDaytime,
-                "collectorRatingByHost": collectorRating,
-                "hostFeedbackUpdatedAt": Timestamp(date: now)
-            ], forDocument: jobRef, merge: true)
-
-            transaction.setData([
+            try await collectorRef.setData([
                 "rating": newRating,
                 "reviewCount": newReviewCount,
                 "updatedAt": Timestamp(date: now)
-            ], forDocument: collectorRef, merge: true)
-
-            return nil
+            ], merge: true)
+        } catch {
+            if !isFirestorePermissionDenied(error) {
+                throw error
+            }
         }
 
         applyHostFeedbackLocally(jobId: jobId, pickedInDaytime: pickedInDaytime, collectorRating: collectorRating)
+    }
+
+    private func isFirestorePermissionDenied(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        #if canImport(FirebaseFirestore)
+        return nsError.code == FirestoreErrorCode.permissionDenied.rawValue
+        #else
+        return false
+        #endif
     }
 
     private func applyHostFeedbackLocally(jobId: String, pickedInDaytime: Bool, collectorRating: Int) {

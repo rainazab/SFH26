@@ -333,7 +333,32 @@ struct CompletePickupView: View {
     
     private func runAICount() async {
         guard AppConfig.aiVerificationEnabled else { return }
-        applyDemoAISuccess()
+        guard let photoImage else {
+            errorMessage = "Please take a pickup photo first."
+            showError = true
+            return
+        }
+        isCountingWithAI = true
+        defer { isCountingWithAI = false }
+        do {
+            // Keep AI check visible long enough for realistic UX.
+            try await Task.sleep(nanoseconds: 1_600_000_000)
+            if AppConfig.aiUseRealModel {
+                let result = try await geminiService.countBottles(from: photoImage)
+                applyGeminiAISuccess(result)
+            } else {
+                applyDemoAISuccess()
+            }
+        } catch {
+            if error is CancellationError { return }
+            let localized = error as? LocalizedError
+            let details = [localized?.errorDescription, localized?.recoverySuggestion]
+                .compactMap { $0 }
+                .joined(separator: "\n")
+            errorMessage = details.isEmpty ? error.localizedDescription : details
+            showError = true
+            HapticManager.shared.error()
+        }
     }
     
     private func complete() {
@@ -448,6 +473,20 @@ struct CompletePickupView: View {
         aiIsRecyclable = true
         aiMaterials = MaterialBreakdown(plastic: plastic, aluminum: aluminum, glass: glass)
         aiSuccessMessage = "Correct amount of bottles added."
+        showAISuccess = true
+        HapticManager.shared.success()
+    }
+
+    private func applyGeminiAISuccess(_ result: BottleCountResult) {
+        let enteredCount = Int(bottleCount) ?? 0
+        let checkedCount = max(1, enteredCount > 0 ? enteredCount : result.count)
+
+        aiCount = checkedCount
+        aiConfidence = result.confidence
+        aiNotes = "AI estimate: \(result.count). \(result.notes)"
+        aiIsRecyclable = (result.materials?.plastic ?? 0) + (result.materials?.aluminum ?? 0) + (result.materials?.glass ?? 0) > 0
+        aiMaterials = result.materials
+        aiSuccessMessage = "AI analysis complete."
         showAISuccess = true
         HapticManager.shared.success()
     }
