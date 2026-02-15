@@ -31,6 +31,7 @@ struct CompletePickupView: View {
     @State private var aiMaterials: MaterialBreakdown?
     @State private var isCountingWithAI = false
     @State private var showImpactBurst = false
+    @State private var confirmedLowConfidence = false
     
     private let geminiService = GeminiService()
     
@@ -44,6 +45,9 @@ struct CompletePickupView: View {
                         Text("Estimated redemption value: $\(String(format: "%.2f", job.estimatedValue))")
                             .font(.subheadline)
                             .foregroundColor(.brandGreen)
+                        Text("Collector payout after \(Int(dataService.platformFeePercentage * 100))% platform fee: $\(String(format: "%.2f", job.estimatedValue * (1 - dataService.platformFeePercentage)))")
+                            .font(.caption2)
+                            .foregroundColor(.brandBlueLight)
                         Text("Value is redeemed at local recycling centers, not paid through bottlr.")
                             .font(.caption2)
                             .foregroundColor(.secondary)
@@ -110,6 +114,10 @@ struct CompletePickupView: View {
                                 }
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
+                            }
+                            if aiConfidence < 70 {
+                                Toggle("AI confidence is low - I confirm this count manually", isOn: $confirmedLowConfidence)
+                                    .font(.caption2)
                             }
                             Button("Use AI Count") { bottleCount = String(aiCount) }
                                 .font(.caption)
@@ -200,9 +208,11 @@ struct CompletePickupView: View {
     }
     
     private var canSubmit: Bool {
-        !isSubmitting &&
-        photoImage != nil &&
-        (Int(bottleCount) ?? 0) > 0
+        let lowConfidenceNeedsOverride = (aiConfidence ?? 100) < 70 && !confirmedLowConfidence
+        return !isSubmitting &&
+            photoImage != nil &&
+            (Int(bottleCount) ?? 0) > 0 &&
+            !lowConfidenceNeedsOverride
     }
     
     private func runAICount(_ image: UIImage) async {
@@ -245,7 +255,9 @@ struct CompletePickupView: View {
                     job,
                     bottleCount: count,
                     aiVerified: AppConfig.aiVerificationEnabled && aiCount != nil,
-                    proofPhotoBase64: photoImage?.jpegData(compressionQuality: 0.6)?.base64EncodedString()
+                    proofPhotoBase64: photoImage?.jpegData(compressionQuality: 0.6)?.base64EncodedString(),
+                    aiConfidence: aiConfidence,
+                    materialBreakdown: aiMaterials
                 )
                 withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) {
                     showImpactBurst = true

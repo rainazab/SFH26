@@ -74,6 +74,9 @@ struct JobDetailView: View {
                                         .font(.caption2)
                                         .foregroundColor(.brandBlueLight)
                                 }
+                                Text("Collector payout: $\(String(format: "%.0f", job.estimatedValue * (1 - dataService.platformFeePercentage)))")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
                             }
                             
                             Divider()
@@ -93,6 +96,9 @@ struct JobDetailView: View {
                         // Schedule
                         InfoRow(icon: "calendar", title: "Schedule", value: job.schedule)
                         InfoRow(icon: "clock", title: "Available", value: job.availableTime)
+                        if let expiresAt = job.expiresAt {
+                            InfoRow(icon: "timer", title: "Expires", value: expiresAt.formatted(date: .omitted, time: .shortened))
+                        }
                         InfoRow(icon: "location", title: "Distance", value: String(format: "%.1f mi", job.distance ?? 0))
                         InfoRow(icon: "car.fill", title: "ETA", value: etaText)
                         
@@ -161,6 +167,22 @@ struct JobDetailView: View {
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+
+                        if let aiConfidence = job.aiConfidence {
+                            Divider()
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("AI SIGNALS")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text("Confidence: \(aiConfidence)%")
+                                    .font(.subheadline)
+                                if let materials = job.materialBreakdown {
+                                    Text("Plastic \(materials.plastic) • Aluminum \(materials.aluminum) • Glass \(materials.glass)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
                                 }
                             }
                         }

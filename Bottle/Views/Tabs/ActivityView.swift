@@ -238,6 +238,18 @@ struct ActivityCard: View {
                         .clipped()
                         .cornerRadius(8)
                 }
+
+                if let aiConfidence = pickup.aiConfidence {
+                    Text("AI confidence: \(aiConfidence)%")
+                        .font(.caption2)
+                        .foregroundColor(.brandBlueLight)
+                }
+
+                if let materials = pickup.materialBreakdown {
+                    Text("Materials P\(materials.plastic) / A\(materials.aluminum) / G\(materials.glass)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
             }
             
             Spacer()

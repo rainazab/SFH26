@@ -31,8 +31,16 @@ final class DataService: ObservableObject, DataServiceProtocol {
     @Published var activityTimeline: [ActivityEvent] = []
     @Published var cityBottlesToday: Int = 0
     @Published var cityCO2Today: Double = 0
+    @Published var platformStats = PlatformStats(
+        totalBottles: 0,
+        totalCO2Saved: 0,
+        totalActiveUsers: 0,
+        totalJobsCompleted: 0
+    )
     @Published var backendStatus: String = "local"
     @Published var lastSyncError: String?
+
+    let platformFeePercentage: Double = 0.08
 
     var hasActiveJob: Bool { !myClaimedJobs.isEmpty }
     var canClaimNewJob: Bool { !hasActiveJob }
@@ -153,6 +161,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
         impactStats.totalEarnings = value
         impactStats.co2Saved = co2
         impactStats.treesEquivalent = Int(ClimateImpactCalculator.treesEquivalent(co2Kg: co2))
+        recalculatePlatformStats()
     }
 
     private func rebuildActivityTimeline() {
@@ -187,12 +196,51 @@ final class DataService: ObservableObject, DataServiceProtocol {
         let today = pickups.filter { Calendar.current.isDateInToday($0.date) }
         cityBottlesToday = today.reduce(0) { $0 + $1.bottleCount }
         cityCO2Today = ClimateImpactCalculator.co2Saved(bottles: cityBottlesToday)
+        recalculatePlatformStats()
+    }
+
+    private func recalculatePlatformStats() {
+        let totalBottles = max(cityBottlesToday, impactStats.totalBottles)
+        platformStats.totalBottles = totalBottles
+        platformStats.totalCO2Saved = ClimateImpactCalculator.co2Saved(bottles: totalBottles)
+        platformStats.totalJobsCompleted = max(completedJobs.count, activityTimeline.filter { $0.type == .pickupCompleted }.count)
+        platformStats.totalActiveUsers = max(leaderboardUsers.count, currentUser == nil ? 0 : 1)
+    }
+
+    private func isTransitionAllowed(from: JobStatus, to: JobStatus) -> Bool {
+        switch (from, to) {
+        case (.available, .claimed),
+             (.posted, .matched),
+             (.matched, .inProgress),
+             (.claimed, .completed),
+             (.inProgress, .completed),
+             (.available, .expired),
+             (.posted, .expired),
+             (.claimed, .cancelled),
+             (.inProgress, .cancelled),
+             (.completed, .disputed):
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func transitionJob(_ job: BottleJob, to newStatus: JobStatus) throws {
+        guard isTransitionAllowed(from: job.status, to: newStatus) else {
+            throw AppError.validation("Invalid status transition: \(job.status.rawValue) → \(newStatus.rawValue)")
+        }
+    }
+
+    private func collectorPayout(for job: BottleJob) -> Double {
+        let gross = job.estimatedValue
+        return max(0, gross * (1.0 - platformFeePercentage))
     }
 
     func claimJob(_ job: BottleJob) async throws {
         guard let user = currentUser else { throw AppError.unauthorized }
         guard user.type == .collector else { throw AppError.validation("Only collectors can claim jobs.") }
         guard canClaimNewJob else { throw AppError.validation("Complete your current pickup before claiming another job.") }
+        try transitionJob(job, to: .claimed)
 
         #if canImport(FirebaseFirestore)
         if isFirestoreEnabled {
@@ -222,8 +270,27 @@ final class DataService: ObservableObject, DataServiceProtocol {
         #endif
     }
 
+    func disputePickup(_ pickup: PickupHistory) async {
+        #if canImport(FirebaseFirestore)
+        guard isFirestoreEnabled, let user = currentUser else { return }
+        do {
+            try await db.collection("disputes").document(UUID().uuidString).setData([
+                "pickupId": pickup.id,
+                "collectorId": user.id,
+                "createdAt": FieldValue.serverTimestamp(),
+                "reason": "Manual dispute submitted from app"
+            ])
+            try await db.collection("users").document(user.id).setData([
+                "disputeCount": FieldValue.increment(Int64(1)),
+                "updatedAt": FieldValue.serverTimestamp()
+            ], merge: true)
+        } catch { }
+        #endif
+    }
+
     func completeJob(_ job: BottleJob, bottleCount: Int, aiVerified: Bool) async throws {
         guard let user = currentUser else { throw AppError.unauthorized }
+        try transitionJob(job, to: .completed)
 
         #if canImport(FirebaseFirestore)
         if isFirestoreEnabled {
@@ -232,7 +299,9 @@ final class DataService: ObservableObject, DataServiceProtocol {
                 bottleCount: bottleCount,
                 aiVerified: aiVerified,
                 collectorId: user.id,
-                proofPhotoBase64: nil
+                proofPhotoBase64: nil,
+                aiConfidence: nil,
+                materialBreakdown: nil
             )
         } else {
             try await appState.completeJob(job, bottleCount: bottleCount, aiVerified: aiVerified)
@@ -245,7 +314,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
             id: UUID().uuidString,
             date: Date(),
             title: "Verified pickup: \(job.title)",
-            amount: job.estimatedValue,
+            amount: collectorPayout(for: job),
             bottleCount: bottleCount
         )
         walletTransactions.insert(transaction, at: 0)
@@ -257,9 +326,12 @@ final class DataService: ObservableObject, DataServiceProtocol {
         _ job: BottleJob,
         bottleCount: Int,
         aiVerified: Bool,
-        proofPhotoBase64: String?
+        proofPhotoBase64: String?,
+        aiConfidence: Int? = nil,
+        materialBreakdown: MaterialBreakdown? = nil
     ) async throws {
         guard let user = currentUser else { throw AppError.unauthorized }
+        try transitionJob(job, to: .completed)
 
         #if canImport(FirebaseFirestore)
         if isFirestoreEnabled {
@@ -268,7 +340,9 @@ final class DataService: ObservableObject, DataServiceProtocol {
                 bottleCount: bottleCount,
                 aiVerified: aiVerified,
                 collectorId: user.id,
-                proofPhotoBase64: proofPhotoBase64
+                proofPhotoBase64: proofPhotoBase64,
+                aiConfidence: aiConfidence,
+                materialBreakdown: materialBreakdown
             )
         } else {
             try await appState.completeJob(job, bottleCount: bottleCount, aiVerified: aiVerified)
@@ -281,7 +355,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
             id: UUID().uuidString,
             date: Date(),
             title: "Verified pickup: \(job.title)",
-            amount: job.estimatedValue,
+            amount: collectorPayout(for: job),
             bottleCount: bottleCount
         )
         walletTransactions.insert(transaction, at: 0)
@@ -391,7 +465,9 @@ final class DataService: ObservableObject, DataServiceProtocol {
             job,
             bottleCount: bottleCount,
             aiVerified: AppConfig.aiVerificationEnabled,
-            proofPhotoBase64: proofPhotoBase64
+            proofPhotoBase64: proofPhotoBase64,
+            aiConfidence: nil,
+            materialBreakdown: nil
         )
     }
 
@@ -490,13 +566,21 @@ private extension DataService {
                 }
                 guard let docs = snapshot?.documents else { return }
                 var parsed = docs.compactMap(FirestoreJobRecord.init(document:)).map(\.job)
+                let now = Date()
+                parsed = parsed.map { job in
+                    var mutable = job
+                    if let expiresAt = mutable.expiresAt, expiresAt <= now, mutable.status == .available {
+                        mutable.status = .expired
+                    }
+                    return mutable
+                }
                 if let userCoordinate = self.userCoordinate {
                     parsed = self.withDistances(parsed, from: userCoordinate)
                 }
-                let now = Date()
                 self.availableJobs = parsed.filter {
                     $0.status != .completed &&
                     $0.status != .cancelled &&
+                    $0.status != .expired &&
                     (($0.expiresAt ?? now.addingTimeInterval(1)) > now)
                 }
                 self.refreshDerivedCollections()
@@ -537,6 +621,7 @@ private extension DataService {
                 Task { @MainActor in
                     guard let self, let docs = snapshot?.documents else { return }
                     self.leaderboardUsers = docs.compactMap(FirestoreUserRecord.init(document:)).map(\.user)
+                    self.recalculatePlatformStats()
                 }
             }
     }
@@ -560,6 +645,7 @@ private extension DataService {
         guard var record = FirestoreJobRecord(document: snap), record.status == .available else {
             throw AppError.validation("This job is no longer available.")
         }
+        try transitionJob(record.job, to: .claimed)
         record.status = .claimed
         record.claimedBy = collectorId
         try await ref.setData(record.dictionary, merge: true)
@@ -601,6 +687,8 @@ private extension DataService {
             claimedBy: nil,
             createdAt: Date(),
             expiresAt: Date().addingTimeInterval(24 * 60 * 60),
+            aiConfidence: nil,
+            materialBreakdown: nil,
             bottlePhotoBase64: bottlePhotoBase64,
             locationPhotoBase64: locationPhotoBase64
         )
@@ -612,13 +700,17 @@ private extension DataService {
         bottleCount: Int,
         aiVerified: Bool,
         collectorId: String,
-        proofPhotoBase64: String?
+        proofPhotoBase64: String?,
+        aiConfidence: Int?,
+        materialBreakdown: MaterialBreakdown?
     ) async throws {
         try await db.collection("jobs").document(job.id).setData([
             "status": "completed",
             "completedAt": Timestamp(date: Date()),
             "actualBottleCount": bottleCount,
-            "aiVerified": aiVerified
+            "aiVerified": aiVerified,
+            "aiConfidence": aiConfidence as Any,
+            "materialBreakdown": materialBreakdown.map { ["plastic": $0.plastic, "aluminum": $0.aluminum, "glass": $0.glass] } as Any
         ], merge: true)
 
         let pickup = FirestorePickupRecord(
@@ -627,20 +719,24 @@ private extension DataService {
             collectorId: collectorId,
             jobTitle: job.title,
             bottleCount: bottleCount,
-            earnings: job.estimatedValue,
+            earnings: collectorPayout(for: job),
             review: aiVerified ? "AI verified pickup completed smoothly." : "Pickup completed successfully.",
             date: Date(),
-            proofPhotoBase64: proofPhotoBase64
+            proofPhotoBase64: proofPhotoBase64,
+            aiConfidence: aiConfidence,
+            materialBreakdown: materialBreakdown
         )
         try await db.collection("pickups").document(pickup.id).setData(pickup.dictionary)
 
         try await db.collection("users").document(collectorId).setData([
-            "totalEarnings": FieldValue.increment(job.estimatedValue),
+            "totalEarnings": FieldValue.increment(collectorPayout(for: job)),
             "totalBottlesDiverted": FieldValue.increment(Int64(bottleCount)),
             "totalBottles": FieldValue.increment(Int64(bottleCount)),
             "reviewCount": FieldValue.increment(Int64(1)),
             "reliabilityScore": 96.0,
             "onTimeRate": 98.0,
+            "cancellationCount": 0,
+            "disputeCount": 0,
             "updatedAt": FieldValue.serverTimestamp()
         ], merge: true)
     }
@@ -677,6 +773,8 @@ private struct FirestoreJobRecord {
     var claimedBy: String?
     let createdAt: Date
     let expiresAt: Date?
+    let aiConfidence: Int?
+    let materialBreakdown: MaterialBreakdown?
     let bottlePhotoBase64: String?
     let locationPhotoBase64: String?
 
@@ -691,9 +789,14 @@ private struct FirestoreJobRecord {
         let statusRawValue = ((data["status"] as? String) ?? "available").lowercased()
         let mappedStatus: JobStatus
         switch statusRawValue {
+        case "posted": mappedStatus = .posted
         case "open", "available": mappedStatus = .available
+        case "matched": mappedStatus = .matched
         case "accepted", "claimed": mappedStatus = .claimed
+        case "inprogress", "in_progress": mappedStatus = .inProgress
         case "completed": mappedStatus = .completed
+        case "disputed": mappedStatus = .disputed
+        case "expired": mappedStatus = .expired
         case "cancelled", "canceled": mappedStatus = .cancelled
         default: mappedStatus = .available
         }
@@ -731,6 +834,14 @@ private struct FirestoreJobRecord {
             createdAt = Date()
         }
         let expiresAt = (data["expiresAt"] as? Timestamp)?.dateValue()
+        let aiConfidence = (data["aiConfidence"] as? Int) ?? (data["aiConfidence"] as? NSNumber)?.intValue
+        let materialBreakdown: MaterialBreakdown? = {
+            guard let dict = data["materialBreakdown"] as? [String: Any] else { return nil }
+            let plastic = (dict["plastic"] as? Int) ?? (dict["plastic"] as? NSNumber)?.intValue ?? 0
+            let aluminum = (dict["aluminum"] as? Int) ?? (dict["aluminum"] as? NSNumber)?.intValue ?? 0
+            let glass = (dict["glass"] as? Int) ?? (dict["glass"] as? NSNumber)?.intValue ?? 0
+            return MaterialBreakdown(plastic: plastic, aluminum: aluminum, glass: glass)
+        }()
 
         self.id = id
         self.donorId = donorId
@@ -751,6 +862,8 @@ private struct FirestoreJobRecord {
         self.claimedBy = data["claimedBy"] as? String
         self.createdAt = createdAt
         self.expiresAt = expiresAt
+        self.aiConfidence = aiConfidence
+        self.materialBreakdown = materialBreakdown
         self.bottlePhotoBase64 = (data["bottlePhotoBase64"] as? String) ?? (data["bottle_photo_base64"] as? String)
         self.locationPhotoBase64 = (data["locationPhotoBase64"] as? String) ?? (data["location_photo_base64"] as? String)
     }
@@ -780,6 +893,8 @@ private struct FirestoreJobRecord {
         claimedBy: String?,
         createdAt: Date,
         expiresAt: Date?,
+        aiConfidence: Int?,
+        materialBreakdown: MaterialBreakdown?,
         bottlePhotoBase64: String?,
         locationPhotoBase64: String?
     ) {
@@ -802,6 +917,8 @@ private struct FirestoreJobRecord {
         self.claimedBy = claimedBy
         self.createdAt = createdAt
         self.expiresAt = expiresAt
+        self.aiConfidence = aiConfidence
+        self.materialBreakdown = materialBreakdown
         self.bottlePhotoBase64 = bottlePhotoBase64
         self.locationPhotoBase64 = locationPhotoBase64
     }
@@ -828,18 +945,24 @@ private struct FirestoreJobRecord {
             distance: nil,
             bottlePhotoBase64: bottlePhotoBase64,
             locationPhotoBase64: locationPhotoBase64,
-            expiresAt: expiresAt
+            expiresAt: expiresAt,
+            aiConfidence: aiConfidence,
+            materialBreakdown: materialBreakdown
         )
     }
 
     var dictionary: [String: Any] {
         let firestoreStatus: String
         switch status {
+        case .posted: firestoreStatus = "posted"
         case .available: firestoreStatus = "open"
+        case .matched: firestoreStatus = "matched"
         case .claimed: firestoreStatus = "accepted"
+        case .inProgress, .in_progress, .arrived: firestoreStatus = "in_progress"
         case .completed: firestoreStatus = "completed"
         case .cancelled: firestoreStatus = "cancelled"
-        default: firestoreStatus = status.rawValue
+        case .disputed: firestoreStatus = "disputed"
+        case .expired: firestoreStatus = "expired"
         }
         return [
             "donorId": donorId,
@@ -862,6 +985,8 @@ private struct FirestoreJobRecord {
             "claimedBy": claimedBy ?? NSNull(),
             "createdAt": Timestamp(date: createdAt),
             "expiresAt": expiresAt.map(Timestamp.init(date:)) as Any,
+            "aiConfidence": aiConfidence as Any,
+            "materialBreakdown": materialBreakdown.map { ["plastic": $0.plastic, "aluminum": $0.aluminum, "glass": $0.glass] } as Any,
             "bottlePhotoBase64": bottlePhotoBase64 as Any,
             "locationPhotoBase64": locationPhotoBase64 as Any
         ]
@@ -878,6 +1003,8 @@ private struct FirestorePickupRecord {
     let review: String
     let date: Date
     let proofPhotoBase64: String?
+    let aiConfidence: Int?
+    let materialBreakdown: MaterialBreakdown?
 
     init(
         id: String,
@@ -888,7 +1015,9 @@ private struct FirestorePickupRecord {
         earnings: Double,
         review: String,
         date: Date,
-        proofPhotoBase64: String?
+        proofPhotoBase64: String?,
+        aiConfidence: Int?,
+        materialBreakdown: MaterialBreakdown?
     ) {
         self.id = id
         self.jobId = jobId
@@ -899,6 +1028,8 @@ private struct FirestorePickupRecord {
         self.review = review
         self.date = date
         self.proofPhotoBase64 = proofPhotoBase64
+        self.aiConfidence = aiConfidence
+        self.materialBreakdown = materialBreakdown
     }
 
     init?(document: DocumentSnapshot) {
@@ -912,6 +1043,14 @@ private struct FirestorePickupRecord {
             let review = data["review"] as? String
         else { return nil }
         let date = (data["date"] as? Timestamp)?.dateValue() ?? Date()
+        let aiConfidence = (data["aiConfidence"] as? Int) ?? (data["aiConfidence"] as? NSNumber)?.intValue
+        let materialBreakdown: MaterialBreakdown? = {
+            guard let dict = data["materialBreakdown"] as? [String: Any] else { return nil }
+            let plastic = (dict["plastic"] as? Int) ?? (dict["plastic"] as? NSNumber)?.intValue ?? 0
+            let aluminum = (dict["aluminum"] as? Int) ?? (dict["aluminum"] as? NSNumber)?.intValue ?? 0
+            let glass = (dict["glass"] as? Int) ?? (dict["glass"] as? NSNumber)?.intValue ?? 0
+            return MaterialBreakdown(plastic: plastic, aluminum: aluminum, glass: glass)
+        }()
         self.init(
             id: document.documentID,
             jobId: jobId,
@@ -921,7 +1060,9 @@ private struct FirestorePickupRecord {
             earnings: earnings,
             review: review,
             date: date,
-            proofPhotoBase64: data["proofPhotoBase64"] as? String
+            proofPhotoBase64: data["proofPhotoBase64"] as? String,
+            aiConfidence: aiConfidence,
+            materialBreakdown: materialBreakdown
         )
     }
 
@@ -934,7 +1075,9 @@ private struct FirestorePickupRecord {
             earnings: earnings,
             rating: 5.0,
             review: review,
-            proofPhotoBase64: proofPhotoBase64
+            proofPhotoBase64: proofPhotoBase64,
+            aiConfidence: aiConfidence,
+            materialBreakdown: materialBreakdown
         )
     }
 
@@ -947,7 +1090,9 @@ private struct FirestorePickupRecord {
             "earnings": earnings,
             "review": review,
             "date": Timestamp(date: date),
-            "proofPhotoBase64": proofPhotoBase64 as Any
+            "proofPhotoBase64": proofPhotoBase64 as Any,
+            "aiConfidence": aiConfidence as Any,
+            "materialBreakdown": materialBreakdown.map { ["plastic": $0.plastic, "aluminum": $0.aluminum, "glass": $0.glass] } as Any
         ]
     }
 }
@@ -961,6 +1106,10 @@ private struct FirestoreUserRecord {
     let totalBottles: Int
     let totalEarnings: Double
     let reviewCount: Int
+    let reliabilityScore: Double
+    let onTimeRate: Double
+    let cancellationCount: Int
+    let disputeCount: Int
     let joinDate: Date
     let profilePhotoBase64: String?
 
@@ -981,6 +1130,10 @@ private struct FirestoreUserRecord {
             ?? 0
         self.totalEarnings = (data["totalEarnings"] as? Double) ?? (data["totalEarnings"] as? NSNumber)?.doubleValue ?? 0
         self.reviewCount = (data["reviewCount"] as? Int) ?? (data["reviewCount"] as? NSNumber)?.intValue ?? 0
+        self.reliabilityScore = (data["reliabilityScore"] as? Double) ?? (data["reliabilityScore"] as? NSNumber)?.doubleValue ?? 100
+        self.onTimeRate = (data["onTimeRate"] as? Double) ?? (data["onTimeRate"] as? NSNumber)?.doubleValue ?? 100
+        self.cancellationCount = (data["cancellationCount"] as? Int) ?? (data["cancellationCount"] as? NSNumber)?.intValue ?? 0
+        self.disputeCount = (data["disputeCount"] as? Int) ?? (data["disputeCount"] as? NSNumber)?.intValue ?? 0
         self.joinDate = joinDate
         self.profilePhotoBase64 = (data["profilePhotoBase64"] as? String) ?? (data["profilePhotoUrl"] as? String)
     }
@@ -992,6 +1145,11 @@ private struct FirestoreUserRecord {
             email: email,
             type: type,
             rating: rating,
+            reliabilityScore: reliabilityScore,
+            onTimeRate: onTimeRate,
+            cancellationRate: reviewCount == 0 ? 0 : (Double(cancellationCount) / Double(max(reviewCount, 1)) * 100),
+            cancellationCount: cancellationCount,
+            disputeCount: disputeCount,
             totalBottles: totalBottles,
             totalEarnings: totalEarnings,
             reviewCount: reviewCount,

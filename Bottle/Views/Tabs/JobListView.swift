@@ -59,7 +59,7 @@ struct JobListView: View {
                         Text("Est. Value")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        Text("$\(Int(filteredJobs.reduce(0) { $0 + $1.payout }))")
+                        Text("$\(Int(filteredJobs.reduce(0) { $0 + $1.estimatedValue }))")
                             .font(.title2)
                             .fontWeight(.bold)
                             .foregroundColor(Color.brandGreen)
@@ -216,6 +216,11 @@ struct JobCard: View {
                     Text(job.availableTime)
                         .font(.caption)
                         .foregroundColor(.secondary)
+                    if let expiresAt = job.expiresAt {
+                        Text("Expires \(expiresAt.formatted(date: .omitted, time: .shortened))")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                    }
                 }
                 
                 Spacer()

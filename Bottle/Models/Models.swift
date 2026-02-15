@@ -39,12 +39,17 @@ enum JobTier: String, Codable {
 
 // MARK: - Job Status
 enum JobStatus: String, Codable {
+    case posted
+    case matched
+    case inProgress
     case available
     case claimed
     case in_progress
     case arrived
     case completed
     case cancelled
+    case disputed
+    case expired
 }
 
 // MARK: - Claim Status
@@ -105,6 +110,8 @@ struct BottleJob: Codable, Identifiable {
     var bottlePhotoBase64: String? = nil
     var locationPhotoBase64: String? = nil
     var expiresAt: Date? = nil
+    var aiConfidence: Int? = nil
+    var materialBreakdown: MaterialBreakdown? = nil
     
     var coordinate: CLLocationCoordinate2D {
         location.coordinate
@@ -130,6 +137,8 @@ struct BottleJob: Codable, Identifiable {
         case bottlePhotoBase64 = "bottle_photo_base64"
         case locationPhotoBase64 = "location_photo_base64"
         case expiresAt = "expires_at"
+        case aiConfidence = "ai_confidence"
+        case materialBreakdown = "material_breakdown"
     }
 }
 
@@ -143,6 +152,8 @@ struct UserProfile: Codable, Identifiable {
     var reliabilityScore: Double = 100
     var onTimeRate: Double = 100
     var cancellationRate: Double = 0
+    var cancellationCount: Int = 0
+    var disputeCount: Int = 0
     var totalBottles: Int
     var totalEarnings: Double
     var reviewCount: Int = 0
@@ -157,6 +168,8 @@ struct UserProfile: Codable, Identifiable {
         case reliabilityScore = "reliability_score"
         case onTimeRate = "on_time_rate"
         case cancellationRate = "cancellation_rate"
+        case cancellationCount = "cancellation_count"
+        case disputeCount = "dispute_count"
         case totalBottles = "total_bottles"
         case totalEarnings = "total_earnings"
         case reviewCount = "review_count"
@@ -263,6 +276,13 @@ struct ImpactStats: Codable {
         case daysHomePowered = "days_home_powered"
         case rankPercentile = "rank_percentile"
     }
+}
+
+struct PlatformStats: Codable {
+    var totalBottles: Int
+    var totalCO2Saved: Double
+    var totalActiveUsers: Int
+    var totalJobsCompleted: Int
 }
 
 // MARK: - Wallet Transaction

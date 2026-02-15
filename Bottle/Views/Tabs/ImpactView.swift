@@ -55,6 +55,22 @@ struct ImpactView: View {
                     .cornerRadius(16)
                     .padding(.horizontal)
 
+                    HStack(spacing: 12) {
+                        MiniStatCard(
+                            value: "\(dataService.platformStats.totalActiveUsers)",
+                            subtitle: "active users",
+                            icon: "person.3.fill",
+                            color: .brandBlueLight
+                        )
+                        MiniStatCard(
+                            value: "\(dataService.platformStats.totalJobsCompleted)",
+                            subtitle: "jobs completed",
+                            icon: "checkmark.seal.fill",
+                            color: .brandGreen
+                        )
+                    }
+                    .padding(.horizontal)
+
                     // Hero Stats
                     VStack(spacing: 20) {
                         HeroStatCard(

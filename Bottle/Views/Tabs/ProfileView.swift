@@ -100,6 +100,14 @@ struct ProfileView: View {
                                     .font(.caption2)
                                     .foregroundColor(.brandBlueLight)
                             }
+                            HStack(spacing: 10) {
+                                Text("Cancellations: \(profile.cancellationCount)")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                Text("Disputes: \(profile.disputeCount)")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                         
                         // Quick Stats
