@@ -468,7 +468,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
 
         #if canImport(FirebaseFirestore)
         if isFirestoreEnabled {
-            try await createJobInFirestore(
+            let createdID = try await createJobInFirestore(
                 donorId: user.id,
                 donorRating: user.rating,
                 title: title,
@@ -483,6 +483,34 @@ final class DataService: ObservableObject, DataServiceProtocol {
                 bottlePhotoBase64: bottlePhotoBase64,
                 locationPhotoBase64: locationPhotoBase64
             )
+            let newPost = BottleJob(
+                id: createdID,
+                donorId: user.id,
+                title: title,
+                location: location,
+                address: address,
+                bottleCount: bottleCount,
+                payout: Double(bottleCount) * 0.10,
+                demandMultiplier: demandMultiplier(for: tier, bottleCount: bottleCount),
+                tier: tier,
+                status: .available,
+                schedule: schedule.isEmpty ? availableTime : schedule,
+                notes: notes,
+                donorRating: user.rating,
+                isRecurring: isRecurring,
+                availableTime: availableTime,
+                claimedBy: nil,
+                createdAt: Date(),
+                distance: nil,
+                bottlePhotoBase64: bottlePhotoBase64,
+                locationPhotoBase64: locationPhotoBase64,
+                expiresAt: Date().addingTimeInterval(24 * 60 * 60),
+                aiConfidence: nil,
+                materialBreakdown: nil,
+                pickedInDaytime: nil,
+                collectorRatingByHost: nil
+            )
+            upsertPostLocally(newPost)
         } else {
             try await appState.createDonorJob(
                 title: title,
@@ -507,6 +535,20 @@ final class DataService: ObservableObject, DataServiceProtocol {
             tier: tier
         )
         #endif
+    }
+
+    private func upsertPostLocally(_ post: BottleJob) {
+        if let existingCacheIndex = allPostsCache.firstIndex(where: { $0.id == post.id }) {
+            allPostsCache[existingCacheIndex] = post
+        } else {
+            allPostsCache.insert(post, at: 0)
+        }
+        if let existingAvailableIndex = availableJobs.firstIndex(where: { $0.id == post.id }) {
+            availableJobs[existingAvailableIndex] = post
+        } else {
+            availableJobs.insert(post, at: 0)
+        }
+        refreshDerivedCollections()
     }
 
     func updatePost(
@@ -1000,7 +1042,7 @@ private extension DataService {
         availableTime: String,
         bottlePhotoBase64: String?,
         locationPhotoBase64: String?
-    ) async throws {
+    ) async throws -> String {
         let id = UUID().uuidString
         let payload = FirestoreJobRecord(
             id: id,
@@ -1030,6 +1072,7 @@ private extension DataService {
             collectorRatingByHost: nil
         )
         try await db.collection("jobs").document(id).setData(payload.dictionary)
+        return id
     }
 
     private func updatePostInFirestore(

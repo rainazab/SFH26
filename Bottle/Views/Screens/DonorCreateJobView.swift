@@ -11,6 +11,7 @@ import UserNotifications
 struct DonorCreateJobView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var dataService: DataService
+    @AppStorage("bottlr.firstRunTip.host") private var showHostTip = true
     let existingPost: BottleJob?
     
     @State private var address = ""
@@ -453,6 +454,7 @@ struct DonorCreateJobView: View {
                     if saveAsDefaultAddress {
                         persistDefaultAddress(address: address, coordinate: coordinate)
                     }
+                    showHostTip = false
                     sendPostNotification(for: count)
                 }
                 showPostedSuccess = true

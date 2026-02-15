@@ -244,16 +244,18 @@ struct JobListView: View {
                 Text(claimErrorMessage)
             }
             .onChange(of: dataService.pendingCollectionPointID) { _, postId in
-                guard let postId else { return }
-                if let match = filteredJobs.first(where: { $0.id == postId }) ?? baseJobs.first(where: { $0.id == postId }) {
-                    selectedJob = match
-                    showingJobDetail = true
-                    dataService.clearPendingCollectionPointOpen(postId)
-                }
+                guard postId != nil else { return }
+                openPendingCollectionPointIfPossible()
+            }
+            .onChange(of: baseJobs.map(\.id)) { _, _ in
+                openPendingCollectionPointIfPossible()
             }
             .onReceive(NotificationCenter.default.publisher(for: AppNotificationService.openCollectionPointNotification)) { notification in
                 guard let postId = notification.userInfo?[AppNotificationService.postIDUserInfoKey] as? String else { return }
                 dataService.queueCollectionPointOpen(postId: postId)
+            }
+            .onAppear {
+                openPendingCollectionPointIfPossible()
             }
         }
     }
@@ -279,6 +281,14 @@ struct JobListView: View {
             self.claimCandidate = nil
             isClaiming = false
         }
+    }
+
+    private func openPendingCollectionPointIfPossible() {
+        guard let postId = dataService.pendingCollectionPointID else { return }
+        guard let match = filteredJobs.first(where: { $0.id == postId }) ?? baseJobs.first(where: { $0.id == postId }) else { return }
+        selectedJob = match
+        showingJobDetail = true
+        dataService.clearPendingCollectionPointOpen(postId)
     }
 }
 

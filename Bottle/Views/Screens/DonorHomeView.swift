@@ -208,10 +208,10 @@ struct DonorHomeView: View {
 
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Label("Last Impact", systemImage: "leaf.fill")
+                            Text("Your Impact")
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
-                                .foregroundColor(.brandBlueDark)
+                                .foregroundColor(.primary)
                             Spacer()
                         }
 

@@ -280,6 +280,7 @@ struct MapView: View {
         }
         .onChange(of: jobs.map(\.id)) { _, _ in
             autoFramePostsIfNeeded(force: false)
+            openPendingCollectionPointIfPossible()
         }
         .onChange(of: dataService.latestNearbyPostID) { _, newValue in
             guard dataService.currentUser?.type == .collector, let newValue else { return }
@@ -294,18 +295,8 @@ struct MapView: View {
             }
         }
         .onChange(of: dataService.pendingCollectionPointID) { _, postId in
-            guard let postId else { return }
-            if let match = jobs.first(where: { $0.id == postId }) {
-                selectedJob = match
-                showingJobDetail = true
-                position = .region(
-                    MKCoordinateRegion(
-                        center: match.coordinate,
-                        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
-                    )
-                )
-                dataService.clearPendingCollectionPointOpen(postId)
-            }
+            guard postId != nil else { return }
+            openPendingCollectionPointIfPossible()
         }
         .onReceive(NotificationCenter.default.publisher(for: AppNotificationService.openCollectionPointNotification)) { notification in
             guard let postId = notification.userInfo?[AppNotificationService.postIDUserInfoKey] as? String else { return }
@@ -359,6 +350,21 @@ struct MapView: View {
             selectedJob = job
             showingJobDetail = true
         }
+    }
+
+    private func openPendingCollectionPointIfPossible() {
+        guard let postId = dataService.pendingCollectionPointID else { return }
+        guard let match = jobs.first(where: { $0.id == postId }) else { return }
+
+        selectedJob = match
+        showingJobDetail = true
+        position = .region(
+            MKCoordinateRegion(
+                center: match.coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+            )
+        )
+        dataService.clearPendingCollectionPointOpen(postId)
     }
 }
 

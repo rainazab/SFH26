@@ -81,22 +81,24 @@ struct OnboardingView: View {
                         Circle()
                             .fill(
                                 LinearGradient(
-                                    colors: [Color.brandBlueLight.opacity(0.34), Color.brandGreen.opacity(0.18)],
+                                    colors: [Color.brandBlueDark.opacity(0.34), Color.brandBlueLight.opacity(0.24)],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
                             )
                             .frame(width: 146, height: 146)
-                            .shadow(color: Color.brandBlueLight.opacity(0.25), radius: 14, y: 6)
+                            .shadow(color: Color.brandBlueDark.opacity(0.22), radius: 14, y: 6)
 
                         Circle()
-                            .fill(Color.white.opacity(0.6))
+                            .fill(Color.brandBlueSurface.opacity(0.95))
                             .frame(width: 122, height: 122)
 
                         Image("logo")
                             .resizable()
                             .scaledToFit()
                             .frame(width: 96, height: 96)
+                            .saturation(0)
+                            .colorMultiply(.brandBlueDark)
                     }
                     
                     Text("Choose your role")
@@ -167,6 +169,12 @@ struct OnboardingView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .interactiveDismissDisabled(true)
+        .onAppear {
+            syncNameFromAuthenticatedProfile()
+        }
+        .onChange(of: authService.currentUser?.name) { _, _ in
+            syncNameFromAuthenticatedProfile()
+        }
     }
     
     @ViewBuilder
@@ -198,6 +206,14 @@ struct OnboardingView: View {
         authService.completeOnboarding(name: name, userType: selectedType)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             isRequestingPermissions = false
+        }
+    }
+
+    private func syncNameFromAuthenticatedProfile() {
+        guard name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let candidate = authService.currentUser?.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !candidate.isEmpty {
+            name = candidate
         }
     }
 }
