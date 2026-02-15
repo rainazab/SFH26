@@ -17,6 +17,16 @@ class GeminiService {
     init() {
         self.apiKey = Config.geminiAPIKey
     }
+
+    private func validatedURL() throws -> URL {
+        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw GeminiError.missingAPIKey
+        }
+        guard let url = URL(string: "\(apiURL)?key=\(apiKey)") else {
+            throw GeminiError.invalidResponse
+        }
+        return url
+    }
     
     // MARK: - Primary Feature: Bottle Counting
     /// DEMO THIS FOR GEMINI TRACK!
@@ -84,9 +94,7 @@ class GeminiService {
             ]
         ]
         
-        guard let url = URL(string: "\(apiURL)?key=\(apiKey)") else {
-            throw GeminiError.invalidResponse
-        }
+        let url = try validatedURL()
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -196,9 +204,7 @@ class GeminiService {
             ]
         ]
 
-        guard let url = URL(string: "\(apiURL)?key=\(apiKey)") else {
-            throw GeminiError.invalidResponse
-        }
+        let url = try validatedURL()
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -244,9 +250,7 @@ class GeminiService {
             ]
         ]
         
-        guard let url = URL(string: "\(apiURL)?key=\(apiKey)") else {
-            throw GeminiError.invalidResponse
-        }
+        let url = try validatedURL()
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"

@@ -73,7 +73,23 @@ enum MongoError: Error {
 }
 
 enum GeminiError: Error {
+    case missingAPIKey
     case invalidResponse
     case rateLimitExceeded
     case imageProcessingFailed
+}
+
+extension GeminiError: LocalizedError {
+    var errorDescription: String? {
+        switch self {
+        case .missingAPIKey:
+            return "Missing API key: add GEMINI_API_KEY to App-Info.plist or your run environment."
+        case .invalidResponse:
+            return "AI service returned an unexpected response."
+        case .rateLimitExceeded:
+            return "AI rate limit reached. Try again shortly."
+        case .imageProcessingFailed:
+            return "Could not process the image for AI analysis."
+        }
+    }
 }

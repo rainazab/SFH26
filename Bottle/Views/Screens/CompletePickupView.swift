@@ -216,12 +216,6 @@ struct CompletePickupView: View {
                 aiIsRecyclable = nil
                 aiMaterials = nil
                 confirmedLowConfidence = false
-                if AppConfig.aiVerificationEnabled, let image = newValue {
-                    aiTask?.cancel()
-                    aiTask = Task {
-                        await runAICount(image)
-                    }
-                }
             }
             .onDisappear {
                 aiTask?.cancel()
@@ -276,8 +270,11 @@ struct CompletePickupView: View {
             }
         } catch is CancellationError {
             return
+        } catch let geminiError as GeminiError {
+            errorMessage = geminiError.localizedDescription
+            showError = true
         } catch {
-            errorMessage = "AI couldn't analyze this photo right now. You can still enter the count manually."
+            errorMessage = "AI couldn't analyze this photo right now (\(error.localizedDescription)). You can still enter the count manually."
             showError = true
         }
     }
