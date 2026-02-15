@@ -87,6 +87,7 @@ struct BottleApp: App {
     
     @StateObject private var authService = AuthService()
     @StateObject private var locationService = LocationService()
+    @StateObject private var dataService = DataService.shared
     
     var body: some Scene {
         WindowGroup {
@@ -108,6 +109,7 @@ struct BottleApp: App {
                         .environmentObject(locationService)
                 }
             }
+            .environmentObject(dataService)
         }
     }
 }

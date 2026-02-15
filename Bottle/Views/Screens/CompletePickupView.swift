@@ -11,7 +11,7 @@ import UIKit
 
 struct CompletePickupView: View {
     @Environment(\.dismiss) var dismiss
-    @StateObject private var dataService = DataService.shared
+    @EnvironmentObject var dataService: DataService
     
     let job: BottleJob
     
@@ -41,9 +41,10 @@ struct CompletePickupView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(job.title).font(.headline)
                         Text(job.address).font(.caption).foregroundColor(.secondary)
-                        Text("Impact potential: \(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: job.bottleCount))) kg CO₂ saved")
-                            .font(.subheadline)
-                            .foregroundColor(.brandBlueLight)
+                        ImpactContextRow(
+                            co2Saved: ClimateImpactCalculator.co2Saved(bottles: job.bottleCount),
+                            bottles: job.bottleCount
+                        )
                         Text("Every verified pickup improves neighborhood recycling outcomes.")
                             .font(.caption2)
                             .foregroundColor(.secondary)
@@ -74,12 +75,46 @@ struct CompletePickupView: View {
                     }
                     .onChange(of: selectedPhoto) { _, newValue in
                         Task {
-                            if let data = try? await newValue?.loadTransferable(type: Data.self),
+                            guard let newValue else { return }
+                            if let data = try? await newValue.loadTransferable(type: Data.self),
                                let image = UIImage(data: data) {
                                 photoImage = image
-                                await runAICount(image)
+                                aiCount = nil
+                                aiConfidence = nil
+                                aiNotes = nil
+                                aiIsRecyclable = nil
+                                aiMaterials = nil
+                                confirmedLowConfidence = false
+                            } else {
+                                errorMessage = "Couldn't load that photo. Please choose a different one."
+                                showError = true
                             }
                         }
+                    }
+                    .accessibilityLabel("Upload pickup photo")
+
+                    if photoImage != nil {
+                        Button {
+                            guard let photoImage else { return }
+                            Task { await runAICount(photoImage) }
+                        } label: {
+                            HStack {
+                                if isCountingWithAI {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "sparkles")
+                                    Text("Count with AI")
+                                        .fontWeight(.semibold)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.brandBlueLight.opacity(0.15))
+                            .foregroundColor(Color.brandBlueDark)
+                            .cornerRadius(10)
+                        }
+                        .disabled(isCountingWithAI)
+                        .accessibilityLabel("Run AI bottle count")
                     }
                     
                     if let aiCount, let aiConfidence {
@@ -110,11 +145,15 @@ struct CompletePickupView: View {
                                 .foregroundColor(.secondary)
                             }
                             if aiConfidence < 70 {
+                                Text("Low confidence. Please review and adjust count before verifying.")
+                                    .font(.caption2)
+                                    .foregroundColor(.orange)
                                 Toggle("AI confidence is low - I confirm this count manually", isOn: $confirmedLowConfidence)
                                     .font(.caption2)
                             }
-                            Button("Use AI Count") { bottleCount = String(aiCount) }
-                                .font(.caption)
+                            Text("Count is auto-filled from AI. You can edit it below any time.")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding()
@@ -230,7 +269,8 @@ struct CompletePickupView: View {
                 bottleCount = "\(countResult.count)"
             }
         } catch {
-            // AI optional in demo flow
+            errorMessage = "AI couldn't analyze this photo right now. You can still enter the count manually."
+            showError = true
         }
     }
     
@@ -270,6 +310,34 @@ struct CompletePickupView: View {
     }
 }
 
+private struct ImpactContextRow: View {
+    let co2Saved: Double
+    let bottles: Int
+
+    private var contextText: String {
+        switch co2Saved {
+        case 0..<5:
+            return "About \(Int(co2Saved * 12)) phone charges worth of carbon avoided."
+        case 5..<25:
+            return "Roughly \(Int(co2Saved / 0.4)) miles of car emissions avoided."
+        default:
+            return "Equivalent to around \(max(1, Int(co2Saved / 20))) tree(s) of annual absorption."
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Impact potential: \(String(format: "%.1f", co2Saved)) kg CO₂ from \(bottles) bottles")
+                .font(.subheadline)
+                .foregroundColor(.brandBlueLight)
+            Text(contextText)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
 #Preview {
     CompletePickupView(job: BottleJob.mockJobs[0])
+        .environmentObject(DataService.shared)
 }

@@ -10,7 +10,7 @@ import MapKit
 
 struct DonorMapView: View {
     @EnvironmentObject var locationService: LocationService
-    @StateObject private var dataService = DataService.shared
+    @EnvironmentObject var dataService: DataService
     @State private var position: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
@@ -62,4 +62,5 @@ struct DonorMapView: View {
 #Preview {
     DonorMapView()
         .environmentObject(LocationService())
+        .environmentObject(DataService.shared)
 }

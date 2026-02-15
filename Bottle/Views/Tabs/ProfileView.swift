@@ -8,11 +8,11 @@
 import SwiftUI
 import PhotosUI
 import UIKit
+import UserNotifications
 
 struct ProfileView: View {
     @EnvironmentObject var authService: AuthService
-    @StateObject private var dataService = DataService.shared
-    @State private var logoTapCount = 0
+    @EnvironmentObject var dataService: DataService
     @State private var showDemoPanel = false
     @State private var selectedProfilePhoto: PhotosPickerItem?
     
@@ -48,22 +48,13 @@ struct ProfileView: View {
                                 .stroke(Color.white.opacity(0.75), lineWidth: 2)
                                 .frame(width: 100, height: 100)
                         }
-                        .onTapGesture {
-                            logoTapCount += 1
-                            if logoTapCount >= 5 {
-                                showDemoPanel = true
-                                logoTapCount = 0
-                            }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                logoTapCount = 0
-                            }
-                        }
 
                         PhotosPicker(selection: $selectedProfilePhoto, matching: .images) {
                             Label("Change profile photo", systemImage: "camera.fill")
                                 .font(.caption)
                                 .foregroundColor(.brandGreen)
                         }
+                        .accessibilityLabel("Change profile photo")
                         
                         VStack(spacing: 8) {
                             Text(profile.name)
@@ -83,6 +74,8 @@ struct ProfileView: View {
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("Rating \(String(format: "%.1f", profile.rating)) out of 5 stars")
                             
                             Text("Member since \(profile.joinDate.formatted(date: .abbreviated, time: .omitted))")
                                 .font(.caption)
@@ -173,7 +166,11 @@ struct ProfileView: View {
                     VStack(spacing: 0) {
                         ProfileMenuItem(icon: "person.fill", title: "Edit Profile", color: .brandGreen)
                         Divider().padding(.leading, 60)
-                        ProfileMenuItem(icon: "bell.fill", title: "Notifications", color: Color(hex: "FF9800"))
+                        NavigationLink {
+                            NotificationSettingsPanel()
+                        } label: {
+                            ProfileMenuRow(icon: "bell.fill", title: "Notifications", color: Color(hex: "FF9800"))
+                        }
                         Divider().padding(.leading, 60)
                         ProfileMenuItem(icon: "creditcard.fill", title: "Payment Methods", color: .brandBlueLight)
                         Divider().padding(.leading, 60)
@@ -185,6 +182,15 @@ struct ProfileView: View {
                     .cornerRadius(20)
                     .shadow(color: Color.black.opacity(0.05), radius: 8)
                     .padding(.horizontal)
+
+                    #if DEBUG
+                    Button("Open Demo Controls") {
+                        showDemoPanel = true
+                    }
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .padding(.horizontal)
+                    #endif
                     
                     // About Section
                     VStack(alignment: .leading, spacing: 16) {
@@ -193,11 +199,11 @@ struct ProfileView: View {
                             .foregroundColor(.secondary)
                         
                         VStack(alignment: .leading, spacing: 12) {
-                            AboutRow(icon: "leaf.circle.fill", title: "Our Mission", description: "Connecting collectors with bottle donors to build a sustainable, dignified economy")
+                            AboutRow(icon: "leaf.circle.fill", title: "Our Mission", description: "Connecting collectors with hosts to build a sustainable, dignified recycling network")
                             Divider()
                             AboutRow(icon: "heart.circle.fill", title: "Social Impact", description: "Supporting 150K+ collectors across California")
                             Divider()
-                            AboutRow(icon: "info.circle.fill", title: "How It Works", description: "Donors create posts, collectors claim posts, everyone benefits")
+                            AboutRow(icon: "info.circle.fill", title: "How It Works", description: "Hosts create posts, collectors claim collection points, everyone benefits")
                         }
                     }
                     .padding()
@@ -353,6 +359,88 @@ struct ProfileMenuItem: View {
     }
 }
 
+struct ProfileMenuRow: View {
+    let icon: String
+    let title: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(color)
+                .frame(width: 30)
+
+            Text(title)
+                .font(.body)
+                .foregroundColor(.primary)
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+    }
+}
+
+struct NotificationSettingsPanel: View {
+    @State private var newPostAlerts = AppNotificationService.shared.newPostAlertsEnabled
+    @State private var pickupAlerts = AppNotificationService.shared.pickupAlertsEnabled
+    @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
+
+    var body: some View {
+        Form {
+            Section("Alerts") {
+                Toggle("New nearby posts", isOn: $newPostAlerts)
+                    .onChange(of: newPostAlerts) { _, value in
+                        AppNotificationService.shared.newPostAlertsEnabled = value
+                    }
+                Toggle("Post updates (claimed/completed)", isOn: $pickupAlerts)
+                    .onChange(of: pickupAlerts) { _, value in
+                        AppNotificationService.shared.pickupAlertsEnabled = value
+                    }
+            }
+
+            Section("System Permission") {
+                Text(permissionDescription)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Button("Request Notification Permission") {
+                    AppNotificationService.shared.requestPermissionIfNeeded()
+                    refreshAuthorizationStatus()
+                }
+            }
+        }
+        .navigationTitle("Notifications")
+        .onAppear {
+            refreshAuthorizationStatus()
+        }
+    }
+
+    private var permissionDescription: String {
+        switch authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            return "Notifications are enabled on this device."
+        case .denied:
+            return "Notifications are disabled in iOS Settings for bottlr."
+        case .notDetermined:
+            return "Allow notifications so you can jump directly to new collection points."
+        @unknown default:
+            return "Notification permission status is unknown."
+        }
+    }
+
+    private func refreshAuthorizationStatus() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            DispatchQueue.main.async {
+                authorizationStatus = settings.authorizationStatus
+            }
+        }
+    }
+}
+
 struct AboutRow: View {
     let icon: String
     let title: String
@@ -380,4 +468,5 @@ struct AboutRow: View {
 #Preview {
     ProfileView()
         .environmentObject(AuthService())
+        .environmentObject(DataService.shared)
 }

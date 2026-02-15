@@ -9,7 +9,7 @@ import SwiftUI
 import UIKit
 
 struct ActivityView: View {
-    @StateObject private var dataService = DataService.shared
+    @EnvironmentObject var dataService: DataService
     @State private var selectedFilter: ActivityFilter = .all
     @State private var selectedClaimedJob: BottleJob?
     @State private var showingCompletePickup = false
@@ -106,7 +106,7 @@ struct ActivityView: View {
                     }
                 }
             }
-            .navigationTitle("Activity")
+            .navigationTitle(dataService.currentUser?.type == .collector ? "Pickups" : "History")
             .sheet(isPresented: $showingCompletePickup) {
                 if let job = selectedClaimedJob {
                     CompletePickupView(job: job)
@@ -279,4 +279,5 @@ struct ActivityCard: View {
 
 #Preview {
     ActivityView()
+        .environmentObject(DataService.shared)
 }

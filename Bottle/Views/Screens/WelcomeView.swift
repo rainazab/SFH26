@@ -120,7 +120,7 @@ struct WelcomeView: View {
                             }) {
                                 HStack {
                                     Image(systemName: "heart.fill")
-                                    Text("I Want to Donate")
+                                    Text("I Want to Host")
                                         .fontWeight(.semibold)
                                 }
                                 .frame(maxWidth: .infinity)

@@ -8,7 +8,7 @@ import SwiftUI
 struct DemoControlPanel: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var mockData = MockDataService.shared
-    @StateObject private var dataService = DataService.shared
+    @EnvironmentObject var dataService: DataService
     @State private var useMockData = AppConfig.useMockData
     @State private var aiEnabled = AppConfig.aiVerificationEnabled
     @State private var climateAnimations = AppConfig.climateAnimationEnabled
@@ -96,4 +96,5 @@ struct DemoControlPanel: View {
 
 #Preview {
     DemoControlPanel()
+        .environmentObject(DataService.shared)
 }

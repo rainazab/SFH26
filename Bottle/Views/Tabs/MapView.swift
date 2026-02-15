@@ -10,7 +10,7 @@ import MapKit
 
 struct MapView: View {
     @EnvironmentObject var locationService: LocationService
-    @StateObject private var dataService = DataService.shared
+    @EnvironmentObject var dataService: DataService
     @State private var position: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
@@ -81,6 +81,7 @@ struct MapView: View {
                                 }
                             }
                         }
+                        .accessibilityLabel("Open collection point details for \(job.title)")
                     }
                 }
             }
@@ -105,6 +106,7 @@ struct MapView: View {
                             .font(.title2)
                             .foregroundColor(Color.brandGreen)
                     }
+                    .accessibilityLabel("Filter posts")
                 }
                 .padding()
                 .background(.ultraThinMaterial)
@@ -363,4 +365,5 @@ struct StatBadge: View {
 #Preview {
     MapView()
         .environmentObject(LocationService())
+        .environmentObject(DataService.shared)
 }

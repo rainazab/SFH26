@@ -9,13 +9,13 @@ import SwiftUI
 import UIKit
 
 struct JobListView: View {
-    @StateObject private var dataService = DataService.shared
+    @EnvironmentObject var dataService: DataService
     @EnvironmentObject var locationService: LocationService
     @State private var searchText = ""
     @State private var selectedTier: JobTier? = nil
     @State private var showingFilters = false
     @State private var hideActiveBanner = false
-    @State private var minEstimatedValue = 0.0
+    @State private var minBottleCount = 0.0
     @State private var maxDistance = 10.0
     @State private var selectedJob: BottleJob?
     @State private var showingJobDetail = false
@@ -36,7 +36,7 @@ struct JobListView: View {
     var filteredJobs: [BottleJob] {
         baseJobs.filter { job in
             (selectedTier == nil || job.tier == selectedTier) &&
-            job.estimatedValue >= minEstimatedValue &&
+            Double(job.bottleCount) >= minBottleCount &&
             (job.distance ?? 0) <= maxDistance &&
             (searchText.isEmpty || job.title.localizedCaseInsensitiveContains(searchText))
         }
@@ -152,6 +152,7 @@ struct JobListView: View {
                             .cornerRadius(20)
                         }
                         .foregroundColor(.primary)
+                        .accessibilityLabel("Open additional filters")
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 12)
@@ -161,12 +162,24 @@ struct JobListView: View {
                 ScrollView {
                     LazyVStack(spacing: 12) {
                         if filteredJobs.isEmpty {
-                            JobsEmptyStateView(
-                                icon: "mappin.slash.circle",
-                                title: "No posts found",
-                                message: "Try widening your distance filter or clearing search."
-                            ) {
-                                showingFilters = true
+                            if isBaseEmptyState {
+                                JobsEmptyStateView(
+                                    icon: "map.circle",
+                                    title: "No posts in your area yet",
+                                    message: "Invite neighbors to share collection points and grow local impact.",
+                                    actionTitle: "Share bottlr"
+                                ) {
+                                    // no-op: ShareLink handles sharing directly
+                                }
+                            } else {
+                                JobsEmptyStateView(
+                                    icon: "mappin.slash.circle",
+                                    title: "No posts match your filters",
+                                    message: "Try widening your distance filter or clearing search.",
+                                    actionTitle: "Adjust Filters"
+                                ) {
+                                    showingFilters = true
+                                }
                             }
                         } else {
                             ForEach(filteredJobs) { job in
@@ -180,6 +193,8 @@ struct JobListView: View {
                                         selectedJob = job
                                         showingJobDetail = true
                                     }
+                                    .accessibilityElement(children: .contain)
+                                    .accessibilityHint("Opens post details")
                             }
                         }
                     }
@@ -189,7 +204,7 @@ struct JobListView: View {
             .navigationTitle("Posts")
             .searchable(text: $searchText, prompt: "Search posts...")
             .sheet(isPresented: $showingFilters) {
-                FiltersView(minEstimatedValue: $minEstimatedValue, maxDistance: $maxDistance)
+                FiltersView(minBottleCount: $minBottleCount, maxDistance: $maxDistance)
             }
             .sheet(isPresented: $showingJobDetail) {
                 if let job = selectedJob {
@@ -233,6 +248,14 @@ struct JobListView: View {
                 }
             }
         }
+    }
+
+    private var isBaseEmptyState: Bool {
+        baseJobs.isEmpty &&
+            searchText.isEmpty &&
+            selectedTier == nil &&
+            minBottleCount == 0 &&
+            maxDistance == 10
     }
 
     private func handleClaim() {
@@ -331,9 +354,6 @@ struct JobCard: View {
                     Text("CO₂ impact")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    Text("$\(Int(job.estimatedValue)) est.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
                     if job.demandMultiplier > 1.0 {
                         Text("+\(Int((job.demandMultiplier - 1.0) * 100))% demand")
                             .font(.caption2)
@@ -393,22 +413,23 @@ struct FilterPill: View {
                 .foregroundColor(isSelected ? .white : .primary)
                 .cornerRadius(20)
         }
+        .accessibilityLabel("Filter \(title)")
     }
 }
 
 struct FiltersView: View {
-    @Binding var minEstimatedValue: Double
+    @Binding var minBottleCount: Double
     @Binding var maxDistance: Double
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
         NavigationView {
             Form {
-                Section("Minimum Estimated Value") {
+                Section("Minimum Bottle Count") {
                     HStack {
-                        Text("$\(Int(minEstimatedValue))")
+                        Text("\(Int(minBottleCount)) bottles")
                             .fontWeight(.semibold)
-                        Slider(value: $minEstimatedValue, in: 0...100, step: 5)
+                        Slider(value: $minBottleCount, in: 0...500, step: 25)
                     }
                 }
                 
@@ -422,7 +443,7 @@ struct FiltersView: View {
                 
                 Section {
                     Button("Reset Filters") {
-                        minEstimatedValue = 0
+                        minBottleCount = 0
                         maxDistance = 10
                     }
                 }
@@ -445,6 +466,7 @@ struct JobsEmptyStateView: View {
     let icon: String
     let title: String
     let message: String
+    let actionTitle: String
     let action: () -> Void
 
     var body: some View {
@@ -459,14 +481,31 @@ struct JobsEmptyStateView: View {
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 20)
-            Button("Adjust Filters", action: action)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(Color.brandGreen)
-                .foregroundColor(.white)
-                .cornerRadius(10)
+            if actionTitle == "Share bottlr" {
+                ShareLink(
+                    item: URL(string: "https://bottlr.tech")!,
+                    subject: Text("Join bottlr"),
+                    message: Text("Help grow local recycling impact on bottlr.")
+                ) {
+                    Text(actionTitle)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(Color.brandGreen)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                }
+            } else {
+                Button(actionTitle, action: action)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color.brandGreen)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
@@ -476,4 +515,5 @@ struct JobsEmptyStateView: View {
 #Preview {
     JobListView()
         .environmentObject(LocationService())
+        .environmentObject(DataService.shared)
 }

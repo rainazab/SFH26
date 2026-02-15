@@ -12,10 +12,24 @@ final class AppNotificationService {
     static let shared = AppNotificationService()
     static let openCollectionPointNotification = Notification.Name("bottlr.openCollectionPoint")
     static let postIDUserInfoKey = "postId"
+    private enum Keys {
+        static let newPostAlertsEnabled = "bottlr.notifications.newPosts.enabled"
+        static let pickupAlertsEnabled = "bottlr.notifications.pickups.enabled"
+    }
 
     private var didRequestPermission = false
 
     private init() {}
+
+    var newPostAlertsEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: Keys.newPostAlertsEnabled) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: Keys.newPostAlertsEnabled) }
+    }
+
+    var pickupAlertsEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: Keys.pickupAlertsEnabled) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: Keys.pickupAlertsEnabled) }
+    }
 
     func requestPermissionIfNeeded() {
         guard !didRequestPermission else { return }
@@ -24,6 +38,7 @@ final class AppNotificationService {
     }
 
     func notifyNewPostNearby(count: Int, postId: String?) {
+        guard newPostAlertsEnabled else { return }
         schedule(
             idPrefix: "new-post",
             title: "New post nearby",
@@ -33,6 +48,7 @@ final class AppNotificationService {
     }
 
     func notifyPostPickedUp(postId: String?) {
+        guard pickupAlertsEnabled else { return }
         schedule(
             idPrefix: "post-picked-up",
             title: "Post picked up",
@@ -42,6 +58,7 @@ final class AppNotificationService {
     }
 
     func notifyPostCompleted(postId: String?) {
+        guard pickupAlertsEnabled else { return }
         schedule(
             idPrefix: "post-completed",
             title: "Post completed",

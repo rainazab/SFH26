@@ -13,7 +13,7 @@ struct JobDetailView: View {
     let job: BottleJob
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var locationService: LocationService
-    @StateObject private var dataService = DataService.shared
+    @EnvironmentObject var dataService: DataService
     @State private var showingClaimSuccess = false
     @State private var showingError = false
     @State private var errorMessage = ""
@@ -69,6 +69,9 @@ struct JobDetailView: View {
                                 Text("\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: job.bottleCount))) kg")
                                     .font(.system(size: 36, weight: .bold))
                                     .foregroundColor(Color.brandBlueLight)
+                                Text(impactContextText)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
                                 if job.demandMultiplier > 1.0 {
                                     Text("High-priority pickup (+\(Int((job.demandMultiplier - 1.0) * 100))% demand)")
                                         .font(.caption2)
@@ -247,7 +250,7 @@ struct JobDetailView: View {
                             Button(action: {}) {
                                 HStack {
                                     Image(systemName: "message.fill")
-                                    Text("Contact Donor")
+                                    Text("Contact Host")
                                         .fontWeight(.semibold)
                                 }
                                 .frame(maxWidth: .infinity)
@@ -334,6 +337,18 @@ struct JobDetailView: View {
         }
     }
 
+    private var impactContextText: String {
+        let co2 = ClimateImpactCalculator.co2Saved(bottles: job.bottleCount)
+        switch co2 {
+        case 0..<5:
+            return "About \(Int(co2 * 12)) phone charges worth of carbon avoided."
+        case 5..<25:
+            return "Roughly \(Int(co2 / 0.4)) miles of car emissions avoided."
+        default:
+            return "Equivalent to around \(max(1, Int(co2 / 20))) tree(s) of annual absorption."
+        }
+    }
+
     private var bottlePhotoImage: UIImage? {
         guard let base64 = job.bottlePhotoBase64,
               let data = Data(base64Encoded: base64) else { return nil }
@@ -371,4 +386,5 @@ struct InfoRow: View {
 #Preview {
     JobDetailView(job: SampleData.shared.jobs[0])
         .environmentObject(LocationService())
+        .environmentObject(DataService.shared)
 }

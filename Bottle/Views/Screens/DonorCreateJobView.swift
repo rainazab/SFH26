@@ -11,7 +11,7 @@ import UserNotifications
 
 struct DonorCreateJobView: View {
     @Environment(\.dismiss) var dismiss
-    @StateObject private var dataService = DataService.shared
+    @EnvironmentObject var dataService: DataService
     
     @State private var address = ""
     @State private var bottleCount = ""
@@ -21,8 +21,9 @@ struct DonorCreateJobView: View {
     @State private var tier: JobTier = .residential
     
     @State private var coordinate: CLLocationCoordinate2D?
-    @State private var selectedLocationResult: LocationSearchResult?
-    @State private var showLocationSearchSheet = false
+    @State private var locationQuery = ""
+    @State private var locationResults: [MKMapItem] = []
+    @State private var isSearchingLocations = false
     
     @State private var isSubmitting = false
     @State private var showError = false
@@ -95,10 +96,38 @@ struct DonorCreateJobView: View {
                 }
                 
                 Section("Location") {
-                    Button {
-                        showLocationSearchSheet = true
-                    } label: {
-                        Label(address.isEmpty ? "Search & Select Address" : "Change Address", systemImage: "magnifyingglass")
+                    TextField("Search address", text: $locationQuery)
+                        .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled()
+                        .accessibilityLabel("Search pickup address")
+                        .onChange(of: locationQuery) { _, _ in
+                            searchLocations()
+                        }
+
+                    if isSearchingLocations {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text("Searching locations...")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    if !locationResults.isEmpty {
+                        ForEach(locationResults.prefix(5), id: \.self) { item in
+                            Button {
+                                applyLocation(item)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.name ?? "Location")
+                                        .foregroundColor(.primary)
+                                    Text(item.placemark.title ?? "")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .accessibilityLabel("Use address \(item.placemark.title ?? item.name ?? "Location")")
+                        }
                     }
 
                     if !address.isEmpty, let coordinate {
@@ -225,9 +254,6 @@ struct DonorCreateJobView: View {
             } message: {
                 Text("Your collection point request is now visible to nearby collectors.")
             }
-            .sheet(isPresented: $showLocationSearchSheet) {
-                LocationSearchView(selectedLocation: $selectedLocationResult)
-            }
             .fullScreenCover(isPresented: $showBottleCamera) {
                 CameraImagePicker(image: $bottlePhotoImage)
                     .ignoresSafeArea()
@@ -236,24 +262,27 @@ struct DonorCreateJobView: View {
                 CameraImagePicker(image: $locationPhotoImage)
                     .ignoresSafeArea()
             }
-            .onChange(of: selectedLocationResult) { _, newValue in
-                guard let newValue else { return }
-                coordinate = newValue.coordinate
-                address = newValue.address
-            }
             .onChange(of: selectedBottlePhoto) { _, newValue in
                 Task {
-                    if let data = try? await newValue?.loadTransferable(type: Data.self),
+                    guard let newValue else { return }
+                    if let data = try? await newValue.loadTransferable(type: Data.self),
                        let image = UIImage(data: data) {
                         bottlePhotoImage = image
+                    } else {
+                        errorMessage = "Couldn't load bottle photo. Try a different image."
+                        showError = true
                     }
                 }
             }
             .onChange(of: selectedLocationPhoto) { _, newValue in
                 Task {
-                    if let data = try? await newValue?.loadTransferable(type: Data.self),
+                    guard let newValue else { return }
+                    if let data = try? await newValue.loadTransferable(type: Data.self),
                        let image = UIImage(data: data) {
                         locationPhotoImage = image
+                    } else {
+                        errorMessage = "Couldn't load location photo. Try a different image."
+                        showError = true
                     }
                 }
             }
@@ -275,6 +304,37 @@ struct DonorCreateJobView: View {
     private func adjustBottleCount(by delta: Int) {
         let current = max(0, Int(bottleCount) ?? 0)
         bottleCount = "\(max(0, current + delta))"
+    }
+
+    private func searchLocations() {
+        let query = locationQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            isSearchingLocations = false
+            locationResults = []
+            return
+        }
+
+        isSearchingLocations = true
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = query
+        request.region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
+            span: MKCoordinateSpan(latitudeDelta: 0.4, longitudeDelta: 0.4)
+        )
+
+        MKLocalSearch(request: request).start { response, _ in
+            DispatchQueue.main.async {
+                isSearchingLocations = false
+                locationResults = response?.mapItems ?? []
+            }
+        }
+    }
+
+    private func applyLocation(_ item: MKMapItem) {
+        coordinate = item.placemark.coordinate
+        address = item.placemark.title ?? item.name ?? ""
+        locationQuery = address
+        locationResults = []
     }
     
     private func create() {
@@ -380,4 +440,5 @@ struct CameraImagePicker: UIViewControllerRepresentable {
 
 #Preview {
     DonorCreateJobView()
+        .environmentObject(DataService.shared)
 }

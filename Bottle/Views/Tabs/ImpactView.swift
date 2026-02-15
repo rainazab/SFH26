@@ -9,7 +9,7 @@ import SwiftUI
 import Charts
 
 struct ImpactView: View {
-    @StateObject private var dataService = DataService.shared
+    @EnvironmentObject var dataService: DataService
     private var impactStats: ImpactStats { dataService.impactStats }
     
     private func medalForRank(_ rank: Int) -> String? {
@@ -423,4 +423,5 @@ struct WeeklyChartView: View {
 
 #Preview {
     ImpactView()
+        .environmentObject(DataService.shared)
 }

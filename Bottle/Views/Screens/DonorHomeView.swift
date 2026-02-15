@@ -8,12 +8,38 @@
 import SwiftUI
 
 struct DonorHomeView: View {
-    @StateObject private var dataService = DataService.shared
+    @EnvironmentObject var dataService: DataService
+    @AppStorage("bottlr.firstRunTip.host") private var showHostTip = true
     
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 24) {
+                    if showHostTip {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "lightbulb.fill")
+                                .foregroundColor(.brandBlueLight)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("First step")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text("Post your first collection point so nearby collectors can claim it.")
+                                    .font(.subheadline)
+                            }
+                            Spacer()
+                            Button {
+                                showHostTip = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding()
+                        .background(Color(.secondarySystemBackground))
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                    }
+
                     NavigationLink(destination: DonorCreateJobView()) {
                         HStack {
                             Image(systemName: "plus.circle.fill")
@@ -79,4 +105,5 @@ struct DonorHomeView: View {
 
 #Preview {
     DonorHomeView()
+        .environmentObject(DataService.shared)
 }

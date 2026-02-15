@@ -343,9 +343,9 @@ struct SignUpView: View {
                                     }
                                     
                                     UserTypeButton(
-                                        title: "Donor",
+                                        title: "Host",
                                         icon: "house",
-                                        description: "Donate bottles",
+                                        description: "Post bottles",
                                         isSelected: userType == .donor
                                     ) {
                                         userType = .donor
