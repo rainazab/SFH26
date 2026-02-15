@@ -7,7 +7,6 @@ import SwiftUI
 
 struct OnboardingView: View {
     @EnvironmentObject var authService: AuthService
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     
     @State private var selectedType: UserType = .collector
     @State private var name: String = ""
@@ -74,7 +73,6 @@ struct OnboardingView: View {
                 
                 Button {
                     authService.completeOnboarding(name: name, userType: selectedType)
-                    hasCompletedOnboarding = true
                 } label: {
                     Text("Get Started")
                         .fontWeight(.bold)

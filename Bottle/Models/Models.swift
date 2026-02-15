@@ -101,6 +101,8 @@ struct BottleJob: Codable, Identifiable {
     var claimedBy: String?
     let createdAt: Date
     var distance: Double?
+    var bottlePhotoBase64: String? = nil
+    var locationPhotoBase64: String? = nil
     
     var coordinate: CLLocationCoordinate2D {
         location.coordinate
@@ -118,6 +120,8 @@ struct BottleJob: Codable, Identifiable {
         case claimedBy = "claimed_by"
         case createdAt = "created_at"
         case distance
+        case bottlePhotoBase64 = "bottle_photo_base64"
+        case locationPhotoBase64 = "location_photo_base64"
     }
 }
 
@@ -208,6 +212,7 @@ struct PickupHistory: Codable, Identifiable {
     let earnings: Double
     let rating: Double
     let review: String
+    var proofPhotoBase64: String? = nil
     
     enum CodingKeys: String, CodingKey {
         case id = "_id"
@@ -215,6 +220,7 @@ struct PickupHistory: Codable, Identifiable {
         case date
         case bottleCount = "bottle_count"
         case earnings, rating, review
+        case proofPhotoBase64 = "proof_photo_base64"
     }
 }
 

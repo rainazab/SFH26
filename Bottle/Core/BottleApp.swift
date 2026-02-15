@@ -60,7 +60,6 @@ struct BottleApp: App {
     
     @StateObject private var authService = AuthService()
     @StateObject private var locationService = LocationService()
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     
     var body: some Scene {
         WindowGroup {
@@ -72,7 +71,7 @@ struct BottleApp: App {
                     // Login
                     LoginView()
                         .environmentObject(authService)
-                } else if !hasCompletedOnboarding {
+                } else if authService.needsRoleSelection {
                     OnboardingView()
                         .environmentObject(authService)
                 } else if authService.isAuthenticated {
@@ -96,8 +95,8 @@ struct LoadingView: View {
             ZStack {
                 LinearGradient(
                     colors: colorScheme == .dark
-                        ? [Color.brandBlack, Color.brandGreenDark]
-                        : [Color.brandGreen, Color.brandGreenLight],
+                        ? [Color.brandBlack, Color.brandBlueDark]
+                        : [Color.brandGreen, Color.brandBlueDark, Color.brandBlueLight],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )

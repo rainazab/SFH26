@@ -191,7 +191,12 @@ struct CompletePickupView: View {
         isSubmitting = true
         Task {
             do {
-                try await dataService.completeJob(job, bottleCount: count, aiVerified: aiCount != nil)
+                try await dataService.completeJob(
+                    job,
+                    bottleCount: count,
+                    aiVerified: aiCount != nil,
+                    proofPhotoBase64: photoImage?.jpegData(compressionQuality: 0.6)?.base64EncodedString()
+                )
                 isSubmitting = false
                 dismiss()
             } catch {

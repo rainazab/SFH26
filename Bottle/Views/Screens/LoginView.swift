@@ -28,8 +28,8 @@ struct LoginView: View {
             // Full-bleed background
             LinearGradient(
                 colors: colorScheme == .dark
-                    ? [Color.brandBlack, Color.brandGreenDark]
-                    : [Color.brandGreen, Color.brandGreenLight],
+                    ? [Color.brandBlack, Color.brandBlueDark]
+                    : [Color.brandGreen, Color.brandBlueDark, Color.brandBlueLight],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )

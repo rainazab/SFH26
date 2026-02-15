@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct JobListView: View {
     @StateObject private var dataService = DataService.shared
@@ -61,7 +62,7 @@ struct JobListView: View {
                         Text("$\(Int(filteredJobs.reduce(0) { $0 + $1.payout }))")
                             .font(.title2)
                             .fontWeight(.bold)
-                            .foregroundColor(Color(hex: "00C853"))
+                            .foregroundColor(Color.brandGreen)
                     }
                 }
                 .padding()
@@ -81,7 +82,7 @@ struct JobListView: View {
                         FilterPill(
                             title: "Commercial",
                             isSelected: selectedTier == .commercial,
-                            color: Color(hex: "9C27B0")
+                            color: .tierCommercial
                         ) {
                             selectedTier = .commercial
                         }
@@ -89,7 +90,7 @@ struct JobListView: View {
                         FilterPill(
                             title: "Bulk",
                             isSelected: selectedTier == .bulk,
-                            color: Color(hex: "2196F3")
+                            color: .tierBulk
                         ) {
                             selectedTier = .bulk
                         }
@@ -97,7 +98,7 @@ struct JobListView: View {
                         FilterPill(
                             title: "Residential",
                             isSelected: selectedTier == .residential,
-                            color: Color(hex: "4CAF50")
+                            color: .tierResidential
                         ) {
                             selectedTier = .residential
                         }
@@ -164,6 +165,15 @@ struct JobCard: View {
     var body: some View {
             VStack(spacing: 12) {
             HStack(spacing: 16) {
+                if let bottlePreview = bottlePreview {
+                    Image(uiImage: bottlePreview)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 60, height: 60)
+                        .clipped()
+                        .cornerRadius(12)
+                }
+
                 // Icon
                 ZStack {
                     Circle()
@@ -215,7 +225,7 @@ struct JobCard: View {
                     Text("$\(Int(job.payout))")
                         .font(.title2)
                         .fontWeight(.bold)
-                        .foregroundColor(Color(hex: "00C853"))
+                        .foregroundColor(Color.brandGreen)
                     Text("est. value")
                         .font(.caption2)
                         .foregroundColor(.secondary)
@@ -242,10 +252,16 @@ struct JobCard: View {
     
     func tierColor(_ tier: JobTier) -> Color {
         switch tier {
-        case .residential: return Color(hex: "4CAF50")
-        case .bulk: return Color(hex: "2196F3")
-        case .commercial: return Color(hex: "9C27B0")
+        case .residential: return .tierResidential
+        case .bulk: return .tierBulk
+        case .commercial: return .tierCommercial
         }
+    }
+
+    private var bottlePreview: UIImage? {
+        guard let base64 = job.bottlePhotoBase64,
+              let data = Data(base64Encoded: base64) else { return nil }
+        return UIImage(data: data)
     }
 }
 

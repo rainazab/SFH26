@@ -23,7 +23,7 @@ struct DonorHomeView: View {
                     VStack(spacing: 12) {
                         Image(systemName: "leaf.circle.fill")
                             .font(.system(size: 60))
-                            .foregroundColor(Color(hex: "00C853"))
+                            .foregroundColor(Color.brandGreen)
                         
                         Text("Turn Your Bottles\nInto Impact")
                             .font(.title)
@@ -91,12 +91,12 @@ struct DonorHomeView: View {
                                 
                                 HStack {
                                     Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(Color(hex: "00C853"))
+                                        .foregroundColor(Color.brandGreen)
                                     Text("1234 Oak St, San Francisco")
                                     Spacer()
                                 }
                                 .padding()
-                                .background(Color(hex: "00C853").opacity(0.15))
+                                .background(Color.brandGreen.opacity(0.15))
                                 .cornerRadius(10)
                             }
                             
@@ -108,7 +108,7 @@ struct DonorHomeView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color(hex: "00C853"))
+                                .background(Color.brandGreen)
                                 .foregroundColor(.white)
                                 .cornerRadius(15)
                             }
@@ -127,13 +127,13 @@ struct DonorHomeView: View {
                             .foregroundColor(.secondary)
                         
                         HStack(spacing: 20) {
-                            ImpactStat(icon: "cylinder.fill", value: "\(dataService.impactStats.totalBottles)", label: "bottles donated", color: Color(hex: "00C853"))
+                            ImpactStat(icon: "cylinder.fill", value: "\(dataService.impactStats.totalBottles)", label: "bottles donated", color: .brandGreen)
                             ImpactStat(icon: "dollarsign.circle.fill", value: "$\(Int(dataService.impactStats.totalEarnings))", label: "est. redemption value", color: Color(hex: "FF9800"))
                         }
                         
                         HStack(spacing: 20) {
-                            ImpactStat(icon: "leaf.fill", value: "23kg", label: "CO₂ saved", color: Color(hex: "4CAF50"))
-                            ImpactStat(icon: "chart.bar.fill", value: "Top 5%", label: "in Oakland", color: Color(hex: "2196F3"))
+                            ImpactStat(icon: "leaf.fill", value: "23kg", label: "CO₂ saved", color: .brandGreenDark)
+                            ImpactStat(icon: "chart.bar.fill", value: "Top 5%", label: "in Oakland", color: .brandBlueLight)
                         }
                         
                         Divider()
@@ -149,7 +149,7 @@ struct DonorHomeView: View {
                         }
                         
                         ProgressView(value: Double(dataService.impactStats.totalBottles), total: Double(max(dataService.impactStats.totalBottles + 80, 500)))
-                            .tint(Color(hex: "00C853"))
+                            .tint(Color.brandGreen)
                         
                         Text("🏆 Unlock \"Oakland Hero\" badge")
                             .font(.caption)
@@ -234,7 +234,7 @@ struct RecentPickupRow: View {
             HStack {
                 Image(systemName: "person.circle.fill")
                     .font(.title2)
-                    .foregroundColor(Color(hex: "00C853"))
+                    .foregroundColor(Color.brandGreen)
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(name) picked up \(bottles) bottles")
@@ -253,7 +253,7 @@ struct RecentPickupRow: View {
                 Spacer()
                 
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(Color(hex: "00C853"))
+                    .foregroundColor(Color.brandGreen)
             }
             
             Text("\"\(review)\"")

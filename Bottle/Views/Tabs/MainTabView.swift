@@ -93,11 +93,6 @@ struct MainTabView: View {
         } message: {
             Text("bottlr uses your location to show nearby jobs and sort pickups around you.")
         }
-        .sheet(isPresented: $authService.shouldPromptRoleSelection) {
-            RoleSelectionView { selectedType in
-                authService.setCurrentUserType(selectedType)
-            }
-        }
     }
 }
 

@@ -27,6 +27,8 @@ final class DataService: ObservableObject {
     @Published var currentUser: UserProfile?
     @Published var impactStats: ImpactStats = .mockStats
     @Published var walletTransactions: [WalletTransaction] = []
+    @Published var backendStatus: String = "local"
+    @Published var lastSyncError: String?
 
     var hasActiveJob: Bool { !myClaimedJobs.isEmpty }
     var canClaimNewJob: Bool { !hasActiveJob }
@@ -70,10 +72,12 @@ final class DataService: ObservableObject {
     private func configureBackend() {
         #if canImport(FirebaseFirestore)
         isFirestoreEnabled = true
+        backendStatus = "firestore"
         observeJobs()
         observePickups()
         #else
         isFirestoreEnabled = false
+        backendStatus = "local"
         bindFallbackState()
         #endif
     }
@@ -128,7 +132,7 @@ final class DataService: ObservableObject {
         if isFirestoreEnabled {
             do {
                 try await db.collection("jobs").document(job.id).updateData([
-                    "status": JobStatus.available.rawValue,
+                    "status": "open",
                     "claimedBy": FieldValue.delete()
                 ])
             } catch { }
@@ -145,7 +149,48 @@ final class DataService: ObservableObject {
 
         #if canImport(FirebaseFirestore)
         if isFirestoreEnabled {
-            try await completeJobInFirestore(job, bottleCount: bottleCount, aiVerified: aiVerified, collectorId: user.id)
+            try await completeJobInFirestore(
+                job,
+                bottleCount: bottleCount,
+                aiVerified: aiVerified,
+                collectorId: user.id,
+                proofPhotoBase64: nil
+            )
+        } else {
+            try await appState.completeJob(job, bottleCount: bottleCount, aiVerified: aiVerified)
+        }
+        #else
+        try await appState.completeJob(job, bottleCount: bottleCount, aiVerified: aiVerified)
+        #endif
+
+        let transaction = WalletTransaction(
+            id: UUID().uuidString,
+            date: Date(),
+            title: "Verified pickup: \(job.title)",
+            amount: job.payout,
+            bottleCount: bottleCount
+        )
+        walletTransactions.insert(transaction, at: 0)
+        persistWallet()
+    }
+
+    func completeJob(
+        _ job: BottleJob,
+        bottleCount: Int,
+        aiVerified: Bool,
+        proofPhotoBase64: String?
+    ) async throws {
+        guard let user = currentUser else { throw AppError.unauthorized }
+
+        #if canImport(FirebaseFirestore)
+        if isFirestoreEnabled {
+            try await completeJobInFirestore(
+                job,
+                bottleCount: bottleCount,
+                aiVerified: aiVerified,
+                collectorId: user.id,
+                proofPhotoBase64: proofPhotoBase64
+            )
         } else {
             try await appState.completeJob(job, bottleCount: bottleCount, aiVerified: aiVerified)
         }
@@ -173,7 +218,9 @@ final class DataService: ObservableObject {
         notes: String,
         isRecurring: Bool,
         tier: JobTier,
-        availableTime: String
+        availableTime: String,
+        bottlePhotoBase64: String? = nil,
+        locationPhotoBase64: String? = nil
     ) async throws {
         guard let user = currentUser else { throw AppError.unauthorized }
         guard user.type == .donor else { throw AppError.validation("Only donors can create jobs.") }
@@ -191,7 +238,9 @@ final class DataService: ObservableObject {
                 notes: notes,
                 isRecurring: isRecurring,
                 tier: tier,
-                availableTime: availableTime
+                availableTime: availableTime,
+                bottlePhotoBase64: bottlePhotoBase64,
+                locationPhotoBase64: locationPhotoBase64
             )
         } else {
             try await appState.createDonorJob(
@@ -293,14 +342,22 @@ final class DataService: ObservableObject {
 private extension DataService {
     func observeJobs() {
         jobsListener?.remove()
-        jobsListener = db.collection("jobs").addSnapshotListener { [weak self] snapshot, _ in
-            guard let self, let docs = snapshot?.documents else { return }
-            var parsed = docs.compactMap(FirestoreJobRecord.init(document:)).map(\.job)
-            if let userCoordinate = self.userCoordinate {
-                parsed = self.withDistances(parsed, from: userCoordinate)
+        jobsListener = db.collection("jobs").addSnapshotListener { [weak self] snapshot, error in
+            Task { @MainActor in
+                guard let self else { return }
+                if let error {
+                    self.lastSyncError = "jobs sync failed: \(error.localizedDescription)"
+                    return
+                }
+                guard let docs = snapshot?.documents else { return }
+                var parsed = docs.compactMap(FirestoreJobRecord.init(document:)).map(\.job)
+                if let userCoordinate = self.userCoordinate {
+                    parsed = self.withDistances(parsed, from: userCoordinate)
+                }
+                self.availableJobs = parsed.filter { $0.status != .completed && $0.status != .cancelled }
+                self.refreshDerivedCollections()
+                self.lastSyncError = nil
             }
-            self.availableJobs = parsed.filter { $0.status != .completed && $0.status != .cancelled }
-            self.refreshDerivedCollections()
         }
     }
 
@@ -309,13 +366,21 @@ private extension DataService {
         pickupsListener?.remove()
         pickupsListener = db.collection("pickups")
             .whereField("collectorId", isEqualTo: userId)
-            .addSnapshotListener { [weak self] snapshot, _ in
-                guard let self, let docs = snapshot?.documents else { return }
-                self.completedJobs = docs
-                    .compactMap(FirestorePickupRecord.init(document:))
-                    .map(\.history)
-                    .sorted { $0.date > $1.date }
-                self.recalculateImpactFromHistory()
+            .addSnapshotListener { [weak self] snapshot, error in
+                Task { @MainActor in
+                    guard let self else { return }
+                    if let error {
+                        self.lastSyncError = "pickups sync failed: \(error.localizedDescription)"
+                        return
+                    }
+                    guard let docs = snapshot?.documents else { return }
+                    self.completedJobs = docs
+                        .compactMap(FirestorePickupRecord.init(document:))
+                        .map(\.history)
+                        .sorted { $0.date > $1.date }
+                    self.recalculateImpactFromHistory()
+                    self.lastSyncError = nil
+                }
             }
     }
 
@@ -341,7 +406,9 @@ private extension DataService {
         notes: String,
         isRecurring: Bool,
         tier: JobTier,
-        availableTime: String
+        availableTime: String,
+        bottlePhotoBase64: String?,
+        locationPhotoBase64: String?
     ) async throws {
         let id = UUID().uuidString
         let payload = FirestoreJobRecord(
@@ -361,14 +428,22 @@ private extension DataService {
             isRecurring: isRecurring,
             availableTime: availableTime,
             claimedBy: nil,
-            createdAt: Date()
+            createdAt: Date(),
+            bottlePhotoBase64: bottlePhotoBase64,
+            locationPhotoBase64: locationPhotoBase64
         )
         try await db.collection("jobs").document(id).setData(payload.dictionary)
     }
 
-    func completeJobInFirestore(_ job: BottleJob, bottleCount: Int, aiVerified: Bool, collectorId: String) async throws {
+    func completeJobInFirestore(
+        _ job: BottleJob,
+        bottleCount: Int,
+        aiVerified: Bool,
+        collectorId: String,
+        proofPhotoBase64: String?
+    ) async throws {
         try await db.collection("jobs").document(job.id).setData([
-            "status": JobStatus.completed.rawValue,
+            "status": "completed",
             "completedAt": Timestamp(date: Date()),
             "actualBottleCount": bottleCount,
             "aiVerified": aiVerified
@@ -382,7 +457,8 @@ private extension DataService {
             bottleCount: bottleCount,
             earnings: job.payout,
             review: aiVerified ? "AI verified pickup completed smoothly." : "Pickup completed successfully.",
-            date: Date()
+            date: Date(),
+            proofPhotoBase64: proofPhotoBase64
         )
         try await db.collection("pickups").document(pickup.id).setData(pickup.dictionary)
     }
@@ -406,28 +482,50 @@ private struct FirestoreJobRecord {
     let availableTime: String
     var claimedBy: String?
     let createdAt: Date
+    let bottlePhotoBase64: String?
+    let locationPhotoBase64: String?
 
     init?(_ data: [String: Any], id: String) {
         let bottleValue = (data["bottleCount"] as? Int) ?? (data["bottleCount"] as? NSNumber)?.intValue
         let payoutValue = (data["payout"] as? Double) ?? (data["payout"] as? NSNumber)?.doubleValue
         let donorRatingValue = (data["donorRating"] as? Double) ?? (data["donorRating"] as? NSNumber)?.doubleValue
+        let donorIdValue = (data["donorId"] as? String) ?? (data["donor_id"] as? String)
+        let bottleCountValue = bottleValue ?? (data["bottle_count"] as? Int) ?? (data["bottle_count"] as? NSNumber)?.intValue
+        let payoutRaw = payoutValue ?? (data["estimatedValue"] as? Double) ?? (data["estimatedValue"] as? NSNumber)?.doubleValue
+        let statusRawValue = ((data["status"] as? String) ?? "available").lowercased()
+        let mappedStatus: JobStatus
+        switch statusRawValue {
+        case "open", "available": mappedStatus = .available
+        case "accepted", "claimed": mappedStatus = .claimed
+        case "completed": mappedStatus = .completed
+        case "cancelled", "canceled": mappedStatus = .cancelled
+        default: mappedStatus = .available
+        }
+        let locationTuple: (Double, Double)? = {
+            if let lat = (data["latitude"] as? Double) ?? (data["latitude"] as? NSNumber)?.doubleValue,
+               let lon = (data["longitude"] as? Double) ?? (data["longitude"] as? NSNumber)?.doubleValue {
+                return (lat, lon)
+            }
+            if let geo = data["location"] as? GeoPoint {
+                return (geo.latitude, geo.longitude)
+            }
+            return nil
+        }()
+        let tierRaw = (data["tier"] as? String) ?? JobTier.residential.rawValue
+        let tier = JobTier(rawValue: tierRaw) ?? .residential
+        let schedule = (data["schedule"] as? String) ?? "Flexible"
+        let notes = (data["notes"] as? String) ?? ""
+        let donorRating = donorRatingValue ?? 5.0
+        let isRecurring = (data["isRecurring"] as? Bool) ?? false
+        let availableTime = (data["availableTime"] as? String) ?? "Available now"
         guard
-            let donorId = data["donorId"] as? String,
+            let donorId = donorIdValue,
             let title = data["title"] as? String,
-            let latitude = (data["latitude"] as? Double) ?? (data["latitude"] as? NSNumber)?.doubleValue,
-            let longitude = (data["longitude"] as? Double) ?? (data["longitude"] as? NSNumber)?.doubleValue,
+            let latitude = locationTuple?.0,
+            let longitude = locationTuple?.1,
             let address = data["address"] as? String,
-            let bottleCount = bottleValue,
-            let payout = payoutValue,
-            let tierRaw = data["tier"] as? String,
-            let tier = JobTier(rawValue: tierRaw),
-            let statusRaw = data["status"] as? String,
-            let status = JobStatus(rawValue: statusRaw),
-            let schedule = data["schedule"] as? String,
-            let notes = data["notes"] as? String,
-            let donorRating = donorRatingValue,
-            let isRecurring = data["isRecurring"] as? Bool,
-            let availableTime = data["availableTime"] as? String
+            let bottleCount = bottleCountValue,
+            let payout = payoutRaw
         else { return nil }
 
         let createdAt: Date
@@ -446,7 +544,7 @@ private struct FirestoreJobRecord {
         self.bottleCount = bottleCount
         self.payout = payout
         self.tier = tier
-        self.status = status
+        self.status = mappedStatus
         self.schedule = schedule
         self.notes = notes
         self.donorRating = donorRating
@@ -454,6 +552,8 @@ private struct FirestoreJobRecord {
         self.availableTime = availableTime
         self.claimedBy = data["claimedBy"] as? String
         self.createdAt = createdAt
+        self.bottlePhotoBase64 = (data["bottlePhotoBase64"] as? String) ?? (data["bottle_photo_base64"] as? String)
+        self.locationPhotoBase64 = (data["locationPhotoBase64"] as? String) ?? (data["location_photo_base64"] as? String)
     }
 
     init?(document: DocumentSnapshot) {
@@ -478,7 +578,9 @@ private struct FirestoreJobRecord {
         isRecurring: Bool,
         availableTime: String,
         claimedBy: String?,
-        createdAt: Date
+        createdAt: Date,
+        bottlePhotoBase64: String?,
+        locationPhotoBase64: String?
     ) {
         self.id = id
         self.donorId = donorId
@@ -497,6 +599,8 @@ private struct FirestoreJobRecord {
         self.availableTime = availableTime
         self.claimedBy = claimedBy
         self.createdAt = createdAt
+        self.bottlePhotoBase64 = bottlePhotoBase64
+        self.locationPhotoBase64 = locationPhotoBase64
     }
 
     var job: BottleJob {
@@ -517,28 +621,41 @@ private struct FirestoreJobRecord {
             availableTime: availableTime,
             claimedBy: claimedBy,
             createdAt: createdAt,
-            distance: nil
+            distance: nil,
+            bottlePhotoBase64: bottlePhotoBase64,
+            locationPhotoBase64: locationPhotoBase64
         )
     }
 
     var dictionary: [String: Any] {
-        [
+        let firestoreStatus: String
+        switch status {
+        case .available: firestoreStatus = "open"
+        case .claimed: firestoreStatus = "accepted"
+        case .completed: firestoreStatus = "completed"
+        case .cancelled: firestoreStatus = "cancelled"
+        default: firestoreStatus = status.rawValue
+        }
+        return [
             "donorId": donorId,
             "title": title,
             "latitude": latitude,
             "longitude": longitude,
+            "location": GeoPoint(latitude: latitude, longitude: longitude),
             "address": address,
             "bottleCount": bottleCount,
             "payout": payout,
             "tier": tier.rawValue,
-            "status": status.rawValue,
+            "status": firestoreStatus,
             "schedule": schedule,
             "notes": notes,
             "donorRating": donorRating,
             "isRecurring": isRecurring,
             "availableTime": availableTime,
             "claimedBy": claimedBy ?? NSNull(),
-            "createdAt": Timestamp(date: createdAt)
+            "createdAt": Timestamp(date: createdAt),
+            "bottlePhotoBase64": bottlePhotoBase64 as Any,
+            "locationPhotoBase64": locationPhotoBase64 as Any
         ]
     }
 }
@@ -552,6 +669,7 @@ private struct FirestorePickupRecord {
     let earnings: Double
     let review: String
     let date: Date
+    let proofPhotoBase64: String?
 
     init(
         id: String,
@@ -561,7 +679,8 @@ private struct FirestorePickupRecord {
         bottleCount: Int,
         earnings: Double,
         review: String,
-        date: Date
+        date: Date,
+        proofPhotoBase64: String?
     ) {
         self.id = id
         self.jobId = jobId
@@ -571,6 +690,7 @@ private struct FirestorePickupRecord {
         self.earnings = earnings
         self.review = review
         self.date = date
+        self.proofPhotoBase64 = proofPhotoBase64
     }
 
     init?(document: DocumentSnapshot) {
@@ -592,7 +712,8 @@ private struct FirestorePickupRecord {
             bottleCount: bottleCount,
             earnings: earnings,
             review: review,
-            date: date
+            date: date,
+            proofPhotoBase64: data["proofPhotoBase64"] as? String
         )
     }
 
@@ -604,7 +725,8 @@ private struct FirestorePickupRecord {
             bottleCount: bottleCount,
             earnings: earnings,
             rating: 5.0,
-            review: review
+            review: review,
+            proofPhotoBase64: proofPhotoBase64
         )
     }
 
@@ -616,7 +738,8 @@ private struct FirestorePickupRecord {
             "bottleCount": bottleCount,
             "earnings": earnings,
             "review": review,
-            "date": Timestamp(date: date)
+            "date": Timestamp(date: date),
+            "proofPhotoBase64": proofPhotoBase64 as Any
         ]
     }
 }

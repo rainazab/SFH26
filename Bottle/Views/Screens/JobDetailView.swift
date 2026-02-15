@@ -7,6 +7,7 @@
 
 import SwiftUI
 import MapKit
+import UIKit
 
 struct JobDetailView: View {
     let job: BottleJob
@@ -67,7 +68,7 @@ struct JobDetailView: View {
                                     .foregroundColor(.secondary)
                                 Text("$\(String(format: "%.0f", job.payout))")
                                     .font(.system(size: 36, weight: .bold))
-                                    .foregroundColor(Color(hex: "00C853"))
+                                    .foregroundColor(Color.brandGreen)
                             }
                             
                             Divider()
@@ -118,6 +119,46 @@ struct JobDetailView: View {
                                 .background(Color(.systemGray6))
                                 .cornerRadius(10)
                         }
+
+                        if bottlePhotoImage != nil || locationPhotoImage != nil {
+                            Divider()
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("PICKUP PHOTOS")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 10) {
+                                        if let bottlePhotoImage {
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Image(uiImage: bottlePhotoImage)
+                                                    .resizable()
+                                                    .scaledToFill()
+                                                    .frame(width: 160, height: 110)
+                                                    .clipped()
+                                                    .cornerRadius(10)
+                                                Text("Bottles")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                        }
+                                        if let locationPhotoImage {
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Image(uiImage: locationPhotoImage)
+                                                    .resizable()
+                                                    .scaledToFill()
+                                                    .frame(width: 160, height: 110)
+                                                    .clipped()
+                                                    .cornerRadius(10)
+                                                Text("Location")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         
                         Divider()
                         
@@ -158,7 +199,7 @@ struct JobDetailView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color(hex: "00C853"))
+                                .background(Color.brandGreen)
                                 .foregroundColor(.white)
                                 .cornerRadius(15)
                             }
@@ -231,9 +272,9 @@ struct JobDetailView: View {
     
     func tierColor(_ tier: JobTier) -> Color {
         switch tier {
-        case .residential: return Color(hex: "4CAF50")
-        case .bulk: return Color(hex: "2196F3")
-        case .commercial: return Color(hex: "9C27B0")
+        case .residential: return .tierResidential
+        case .bulk: return .tierBulk
+        case .commercial: return .tierCommercial
         }
     }
 
@@ -268,6 +309,18 @@ struct JobDetailView: View {
             etaText = "Unavailable"
         }
     }
+
+    private var bottlePhotoImage: UIImage? {
+        guard let base64 = job.bottlePhotoBase64,
+              let data = Data(base64Encoded: base64) else { return nil }
+        return UIImage(data: data)
+    }
+
+    private var locationPhotoImage: UIImage? {
+        guard let base64 = job.locationPhotoBase64,
+              let data = Data(base64Encoded: base64) else { return nil }
+        return UIImage(data: data)
+    }
 }
 
 struct InfoRow: View {
@@ -278,7 +331,7 @@ struct InfoRow: View {
     var body: some View {
         HStack {
             Image(systemName: icon)
-                .foregroundColor(Color(hex: "00C853"))
+                .foregroundColor(Color.brandGreen)
                 .frame(width: 30)
             Text(title)
                 .font(.subheadline)

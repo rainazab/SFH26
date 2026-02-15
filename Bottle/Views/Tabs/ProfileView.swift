@@ -6,12 +6,15 @@
 //
 
 import SwiftUI
+import PhotosUI
+import UIKit
 
 struct ProfileView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var dataService = DataService.shared
     @State private var logoTapCount = 0
     @State private var showDemoPanel = false
+    @State private var selectedProfilePhoto: PhotosPickerItem?
     
     private var profile: UserProfile {
         dataService.currentUser ?? UserProfile.mockCollector
@@ -26,12 +29,24 @@ struct ProfileView: View {
                         // Avatar
                         ZStack {
                             Circle()
-                                .fill(Color(hex: "00C853").opacity(0.2))
+                                .fill(Color.brandGreen.opacity(0.2))
                                 .frame(width: 100, height: 100)
-                            
-                            Text(profile.name.prefix(1))
-                                .font(.system(size: 40, weight: .bold))
-                                .foregroundColor(Color(hex: "00C853"))
+
+                            if let profileImage = profileImage {
+                                Image(uiImage: profileImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 100, height: 100)
+                                    .clipShape(Circle())
+                            } else {
+                                Text(profile.name.prefix(1))
+                                    .font(.system(size: 40, weight: .bold))
+                                    .foregroundColor(Color.brandGreen)
+                            }
+
+                            Circle()
+                                .stroke(Color.white.opacity(0.75), lineWidth: 2)
+                                .frame(width: 100, height: 100)
                         }
                         .onTapGesture {
                             logoTapCount += 1
@@ -42,6 +57,12 @@ struct ProfileView: View {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                                 logoTapCount = 0
                             }
+                        }
+
+                        PhotosPicker(selection: $selectedProfilePhoto, matching: .images) {
+                            Label("Change profile photo", systemImage: "camera.fill")
+                                .font(.caption)
+                                .foregroundColor(.brandGreen)
                         }
                         
                         VStack(spacing: 8) {
@@ -81,13 +102,13 @@ struct ProfileView: View {
                     
                     // Menu Items
                     VStack(spacing: 0) {
-                        ProfileMenuItem(icon: "person.fill", title: "Edit Profile", color: Color(hex: "00C853"))
+                        ProfileMenuItem(icon: "person.fill", title: "Edit Profile", color: .brandGreen)
                         Divider().padding(.leading, 60)
                         ProfileMenuItem(icon: "bell.fill", title: "Notifications", color: Color(hex: "FF9800"))
                         Divider().padding(.leading, 60)
-                        ProfileMenuItem(icon: "creditcard.fill", title: "Payment Methods", color: Color(hex: "2196F3"))
+                        ProfileMenuItem(icon: "creditcard.fill", title: "Payment Methods", color: .brandBlueLight)
                         Divider().padding(.leading, 60)
-                        ProfileMenuItem(icon: "chart.bar.fill", title: "Statistics", color: Color(hex: "9C27B0"))
+                        ProfileMenuItem(icon: "chart.bar.fill", title: "Statistics", color: .tierCommercial)
                         Divider().padding(.leading, 60)
                         ProfileMenuItem(icon: "gearshape.fill", title: "Settings", color: .gray)
                     }
@@ -116,18 +137,37 @@ struct ProfileView: View {
                     .shadow(color: Color.black.opacity(0.05), radius: 8)
                     .padding(.horizontal)
                     
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Backend")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(dataService.backendStatus == "firestore" ? "Firestore live sync active" : "Local mode active")
+                            .font(.subheadline)
+                            .foregroundColor(dataService.backendStatus == "firestore" ? .green : .orange)
+                        if let syncError = dataService.lastSyncError {
+                            Text(syncError)
+                                .font(.caption2)
+                                .foregroundColor(.red)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .background(Color(.systemBackground))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+
                     // App Info
                     VStack(spacing: 8) {
                         Button(action: {}) {
                             Text("Terms of Service")
                                 .font(.caption)
-                                .foregroundColor(Color(hex: "00C853"))
+                                .foregroundColor(Color.brandGreen)
                         }
                         
                         Button(action: {}) {
                             Text("Privacy Policy")
                                 .font(.caption)
-                                .foregroundColor(Color(hex: "00C853"))
+                                .foregroundColor(Color.brandGreen)
                         }
                         
                         Text("Version 1.0.0")
@@ -167,7 +207,24 @@ struct ProfileView: View {
             .sheet(isPresented: $showDemoPanel) {
                 DemoControlPanel()
             }
+            .onChange(of: selectedProfilePhoto) { _, newValue in
+                Task {
+                    if let data = try? await newValue?.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        authService.updateProfilePhoto(image)
+                    }
+                }
+            }
         }
+    }
+
+    private var profileImage: UIImage? {
+        guard let base64 = profile.profilePhotoUrl,
+              let data = Data(base64Encoded: base64),
+              let image = UIImage(data: data) else {
+            return nil
+        }
+        return image
     }
 }
 
@@ -228,7 +285,7 @@ struct AboutRow: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
                 .font(.title2)
-                .foregroundColor(Color(hex: "00C853"))
+                .foregroundColor(Color.brandGreen)
                 .frame(width: 30)
             
             VStack(alignment: .leading, spacing: 4) {

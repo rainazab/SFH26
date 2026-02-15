@@ -30,8 +30,10 @@ struct DonorCreateJobView: View {
     @State private var isSubmitting = false
     @State private var showError = false
     @State private var errorMessage = ""
-    @State private var selectedPhoto: PhotosPickerItem?
-    @State private var photoImage: UIImage?
+    @State private var selectedBottlePhoto: PhotosPickerItem?
+    @State private var bottlePhotoImage: UIImage?
+    @State private var selectedLocationPhoto: PhotosPickerItem?
+    @State private var locationPhotoImage: UIImage?
     @State private var aiSuggestion: String?
     @State private var isAnalyzingPhoto = false
     private let geminiService = GeminiService()
@@ -79,8 +81,29 @@ struct DonorCreateJobView: View {
                 }
 
                 Section("AI Estimate (Optional)") {
-                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                        Label("Add bottle photo", systemImage: "camera.fill")
+                    PhotosPicker(selection: $selectedBottlePhoto, matching: .images) {
+                        Label("Add bottles photo", systemImage: "camera.fill")
+                    }
+                    if let bottlePhotoImage {
+                        Image(uiImage: bottlePhotoImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(height: 120)
+                            .frame(maxWidth: .infinity)
+                            .clipped()
+                            .cornerRadius(10)
+                    }
+                    PhotosPicker(selection: $selectedLocationPhoto, matching: .images) {
+                        Label("Add pickup location photo", systemImage: "mappin.and.ellipse")
+                    }
+                    if let locationPhotoImage {
+                        Image(uiImage: locationPhotoImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(height: 120)
+                            .frame(maxWidth: .infinity)
+                            .clipped()
+                            .cornerRadius(10)
                     }
                     if isAnalyzingPhoto {
                         ProgressView("Analyzing with Gemini...")
@@ -126,12 +149,20 @@ struct DonorCreateJobView: View {
                 searchText = newValue.name
                 results = []
             }
-            .onChange(of: selectedPhoto) { _, newValue in
+            .onChange(of: selectedBottlePhoto) { _, newValue in
                 Task {
                     if let data = try? await newValue?.loadTransferable(type: Data.self),
                        let image = UIImage(data: data) {
-                        photoImage = image
+                        bottlePhotoImage = image
                         await analyzePhotoWithGemini(image)
+                    }
+                }
+            }
+            .onChange(of: selectedLocationPhoto) { _, newValue in
+                Task {
+                    if let data = try? await newValue?.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        locationPhotoImage = image
                     }
                 }
             }
@@ -187,7 +218,9 @@ struct DonorCreateJobView: View {
                     notes: notes,
                     isRecurring: isRecurring,
                     tier: tier,
-                    availableTime: schedule
+                    availableTime: schedule,
+                    bottlePhotoBase64: bottlePhotoImage?.jpegData(compressionQuality: 0.6)?.base64EncodedString(),
+                    locationPhotoBase64: locationPhotoImage?.jpegData(compressionQuality: 0.6)?.base64EncodedString()
                 )
                 isSubmitting = false
                 dismiss()

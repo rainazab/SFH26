@@ -23,7 +23,7 @@ struct ImpactView: View {
                             value: "\(impactStats.totalBottles)",
                             subtitle: "bottles rescued",
                             icon: "cylinder.fill",
-                            color: Color(hex: "00C853")
+                            color: .brandGreen
                         )
                         
                         HStack(spacing: 15) {
@@ -38,7 +38,7 @@ struct ImpactView: View {
                                 value: "\(String(format: "%.1f", impactStats.co2Saved))kg",
                                 subtitle: "CO₂ saved",
                                 icon: "leaf.fill",
-                                color: Color(hex: "4CAF50")
+                                color: .brandGreenDark
                             )
                         }
                     }
@@ -68,8 +68,8 @@ struct ImpactView: View {
                             .foregroundColor(.secondary)
                         
                         VStack(spacing: 12) {
-                            EquivalenceRow(icon: "tree.fill", text: "Planting \(impactStats.treesEquivalent) trees", color: Color(hex: "4CAF50"))
-                            EquivalenceRow(icon: "car.fill", text: "Removing 1 car from road for 2 weeks", color: Color(hex: "2196F3"))
+                            EquivalenceRow(icon: "tree.fill", text: "Planting \(impactStats.treesEquivalent) trees", color: .brandGreenDark)
+                            EquivalenceRow(icon: "car.fill", text: "Removing 1 car from road for 2 weeks", color: .brandBlueLight)
                             EquivalenceRow(icon: "lightbulb.fill", text: "Powering a home for 45 days", color: Color(hex: "FF9800"))
                         }
                     }
@@ -107,8 +107,8 @@ struct ImpactView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color(hex: "00C853").opacity(0.15))
-                            .foregroundColor(Color(hex: "00C853"))
+                            .background(Color.brandGreen.opacity(0.15))
+                            .foregroundColor(Color.brandGreen)
                             .cornerRadius(12)
                         }
                     }
@@ -266,10 +266,10 @@ struct LeaderboardRow: View {
             Text("\(bottles)")
                 .font(.headline)
                 .fontWeight(.semibold)
-                .foregroundColor(Color(hex: "00C853"))
+                .foregroundColor(Color.brandGreen)
         }
         .padding()
-        .background(isCurrentUser ? Color(hex: "00C853").opacity(0.1) : Color(.systemGray6))
+        .background(isCurrentUser ? Color.brandGreen.opacity(0.1) : Color(.systemGray6))
         .cornerRadius(10)
     }
 }
@@ -347,7 +347,7 @@ struct WeeklyChartView: View {
                 x: .value("Day", data.day),
                 y: .value("Bottles", data.bottles)
             )
-            .foregroundStyle(Color(hex: "00C853"))
+            .foregroundStyle(Color.brandGreen)
             .cornerRadius(5)
         }
         .chartYAxis {

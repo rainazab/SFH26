@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct ActivityView: View {
     @StateObject private var dataService = DataService.shared
@@ -42,21 +43,21 @@ struct ActivityView: View {
                         title: "Today",
                         value: "\(todayCompleted)",
                         subtitle: "drop-offs",
-                        color: Color(hex: "00C853")
+                        color: .brandGreen
                     )
                     
                     ActivityStatCard(
                         title: "Completed",
                         value: "\(totalCompleted)",
                         subtitle: "verified pickups",
-                        color: Color(hex: "2196F3")
+                        color: .brandBlueLight
                     )
                     
                     ActivityStatCard(
                         title: "Bottles",
                         value: "\(totalBottles)",
                         subtitle: "diverted",
-                        color: Color(hex: "9C27B0")
+                        color: .tierCommercial
                     )
                 }
                 .padding()
@@ -74,7 +75,7 @@ struct ActivityView: View {
                                     .fontWeight(.semibold)
                                     .padding(.horizontal, 20)
                                     .padding(.vertical, 8)
-                                    .background(selectedFilter == filter ? Color(hex: "00C853") : Color(.systemGray5))
+                                    .background(selectedFilter == filter ? Color.brandGreen : Color(.systemGray5))
                                     .foregroundColor(selectedFilter == filter ? .white : .primary)
                                     .cornerRadius(20)
                             }
@@ -191,12 +192,12 @@ struct ActivityCard: View {
             // Icon
             ZStack {
                 Circle()
-                    .fill(Color(hex: "00C853").opacity(0.15))
+                    .fill(Color.brandGreen.opacity(0.15))
                     .frame(width: 50, height: 50)
                 
                 Image(systemName: "checkmark.circle.fill")
                     .font(.title2)
-                    .foregroundColor(Color(hex: "00C853"))
+                    .foregroundColor(Color.brandGreen)
             }
             
             // Info
@@ -227,6 +228,16 @@ struct ActivityCard: View {
                         .italic()
                         .lineLimit(2)
                 }
+
+                if let proofImage {
+                    Image(uiImage: proofImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(height: 90)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .clipped()
+                        .cornerRadius(8)
+                }
             }
             
             Spacer()
@@ -236,7 +247,7 @@ struct ActivityCard: View {
                 Text("\(pickup.bottleCount) verified")
                     .font(.headline)
                     .fontWeight(.bold)
-                    .foregroundColor(Color(hex: "00C853"))
+                    .foregroundColor(Color.brandGreen)
                 
                 Image(systemName: "chevron.right")
                     .font(.caption)
@@ -245,6 +256,12 @@ struct ActivityCard: View {
         }
         .padding()
         .background(Color(.systemBackground))
+    }
+
+    private var proofImage: UIImage? {
+        guard let base64 = pickup.proofPhotoBase64,
+              let data = Data(base64Encoded: base64) else { return nil }
+        return UIImage(data: data)
     }
 }
 

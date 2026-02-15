@@ -91,7 +91,7 @@ struct MapView: View {
                     Button(action: {}) {
                         Image(systemName: "line.3.horizontal.decrease.circle.fill")
                             .font(.title2)
-                            .foregroundColor(Color(hex: "00C853"))
+                            .foregroundColor(Color.brandGreen)
                     }
                 }
                 .padding()
@@ -273,9 +273,9 @@ struct MapView: View {
     
     func tierColor(_ tier: JobTier) -> Color {
         switch tier {
-        case .residential: return Color(hex: "4CAF50")
-        case .bulk: return Color(hex: "2196F3")
-        case .commercial: return Color(hex: "9C27B0")
+        case .residential: return .tierResidential
+        case .bulk: return .tierBulk
+        case .commercial: return .tierCommercial
         }
     }
 }
@@ -289,7 +289,7 @@ struct StatBadge: View {
         VStack(spacing: 4) {
             Image(systemName: icon)
                 .font(.title3)
-                .foregroundColor(Color(hex: "00C853"))
+                .foregroundColor(Color.brandGreen)
             Text(value)
                 .font(.headline)
                 .fontWeight(.bold)

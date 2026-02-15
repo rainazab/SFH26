@@ -64,27 +64,29 @@ extension Color {
         )
     }
 
-    // Primary brand colors with depth
-    static let brandGreen = Color(hex: "00C853")
-    static let brandGreenLight = Color(hex: "00E676")
-    static let brandGreenDark = Color(hex: "00A843")
+    // Primary brand palette (green + dark blue + baby blue)
+    static let brandGreen = Color(hex: "7CCF73")
+    static let brandGreenLight = Color(hex: "AEE67A")
+    static let brandGreenDark = Color(hex: "5DA765")
+    static let brandBlueDark = Color(hex: "3F56AE")
+    static let brandBlueLight = Color(hex: "78B6F6")
     static let brandBlack = Color(hex: "0A0A0A")
     static let brandWhite = Color(hex: "FEFEFE")
     
-    // Tier colors - more vibrant
-    static let tierResidential = Color(hex: "4CAF50")
-    static let tierBulk = Color(hex: "2196F3")
-    static let tierCommercial = Color(hex: "9C27B0")
+    // Tier colors aligned to palette
+    static let tierResidential = Color.brandGreen
+    static let tierBulk = Color.brandBlueLight
+    static let tierCommercial = Color.brandBlueDark
     
     // Accent colors - more punch
-    static let accentOrange = Color(hex: "FF6B35")
+    static let accentOrange = Color.brandBlueDark
     static let accentGold = Color(hex: "FFB800")
     static let accentRed = Color(hex: "FF6B6B")
     
     // Gradients for premium feel
     static func brandGradient() -> LinearGradient {
         LinearGradient(
-            colors: [Color.brandGreen, Color.brandGreenLight],
+            colors: [Color.brandGreen, Color.brandBlueDark, Color.brandBlueLight],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -93,11 +95,11 @@ extension Color {
     static func tierGradient(_ tier: JobTier) -> LinearGradient {
         switch tier {
         case .residential:
-            return LinearGradient(colors: [Color.tierResidential, Color(hex: "66BB6A")], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(colors: [Color.tierResidential, Color.brandGreenLight], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .bulk:
-            return LinearGradient(colors: [Color.tierBulk, Color(hex: "42A5F5")], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(colors: [Color.tierBulk, Color(hex: "9DCCFA")], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .commercial:
-            return LinearGradient(colors: [Color.tierCommercial, Color(hex: "AB47BC")], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(colors: [Color.tierCommercial, Color(hex: "5F76CC")], startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
 }

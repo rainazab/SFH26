@@ -18,25 +18,25 @@ struct WelcomeView: View {
             icon: "waterbottle.fill",
             title: "bottlr: Bottles Into Cash",
             subtitle: "Coordinate bottle pickups fast and keep recyclable material out of landfill.",
-            color: "00C853"
+            color: "7CCF73"
         ),
         (
             icon: "map.fill",
             title: "Find Jobs Near You",
             subtitle: "See all available bottles on an interactive map. Claim the best ones first.",
-            color: "2196F3"
+            color: "3F56AE"
         ),
         (
             icon: "dollarsign.circle.fill",
             title: "Track Verified Drop-Offs",
             subtitle: "Monitor completed pickups and estimated redemption value at local recycling centers.",
-            color: "FF6B35"
+            color: "78B6F6"
         ),
         (
             icon: "heart.circle.fill",
             title: "Make a Difference",
             subtitle: "Join 150,000 collectors creating a cleaner, more sustainable California.",
-            color: "9C27B0"
+            color: "3F56AE"
         )
     ]
     
@@ -103,7 +103,7 @@ struct WelcomeView: View {
                                 .padding()
                                 .background(
                                     LinearGradient(
-                                        colors: [Color.brandGreen, Color.brandGreenLight],
+                                        colors: [Color.brandGreen, Color.brandBlueDark, Color.brandBlueLight],
                                         startPoint: .leading,
                                         endPoint: .trailing
                                     )
