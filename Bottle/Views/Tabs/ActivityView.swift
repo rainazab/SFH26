@@ -337,13 +337,19 @@ struct ActivityCard: View {
                     .font(.headline)
                     .fontWeight(.semibold)
                 
-                HStack(spacing: 4) {
-                    ForEach(0..<5) { index in
-                        Image(systemName: index < Int(pickup.rating) ? "star.fill" : "star")
-                            .font(.caption2)
-                            .foregroundColor(.yellow)
+                if pickup.rating > 0 {
+                    HStack(spacing: 4) {
+                        ForEach(0..<5) { index in
+                            Image(systemName: index < Int(pickup.rating) ? "star.fill" : "star")
+                                .font(.caption2)
+                                .foregroundColor(.yellow)
+                        }
+                        Text(String(format: "%.1f", pickup.rating))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-                    Text(String(format: "%.1f", pickup.rating))
+                } else {
+                    Text("Not rated yet")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

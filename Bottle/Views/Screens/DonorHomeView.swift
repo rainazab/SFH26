@@ -18,9 +18,9 @@ struct DonorHomeView: View {
             span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
         )
     )
-    @State private var selectedClaimedPost: BottleJob?
+    @State private var selectedFeedbackPost: BottleJob?
     @State private var selectedPostForEdit: BottleJob?
-    @State private var showClaimFeedbackSheet = false
+    @State private var showFeedbackSheet = false
     @State private var showEditPostSheet = false
     @State private var postPendingDelete: BottleJob?
     @State private var showDeleteConfirmation = false
@@ -89,11 +89,11 @@ struct DonorHomeView: View {
 
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Text("YOUR POSTS")
+                            Text("ACTIVE POSTS")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             Spacer()
-                            Text("\(myPosts.count)")
+                            Text("\(activePosts.count)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -105,14 +105,14 @@ struct DonorHomeView: View {
                         }
                         .pickerStyle(.segmented)
 
-                        if myPosts.isEmpty {
-                            Text("No posts yet. Create your first collection point.")
+                        if activePosts.isEmpty {
+                            Text("No active posts right now.")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                                 .padding(.top, 4)
                         } else if postsMode == .map {
                             Map(position: $mapPosition) {
-                                ForEach(myPosts) { post in
+                                ForEach(activePosts) { post in
                                     Marker(post.title, coordinate: post.coordinate)
                                         .tint(Color.brandGreen)
                                 }
@@ -121,7 +121,7 @@ struct DonorHomeView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         } else {
                             VStack(spacing: 10) {
-                                ForEach(myPosts.prefix(8)) { post in
+                                ForEach(activePosts.prefix(8)) { post in
                                     VStack(alignment: .leading, spacing: 8) {
                                         Text(post.address)
                                             .font(.subheadline)
@@ -175,22 +175,22 @@ struct DonorHomeView: View {
                     .cornerRadius(16)
                     .padding(.horizontal)
 
-                    if let pendingFeedbackPost = pendingClaimedPosts.first {
+                    if let pendingFeedbackPost = pendingCompletedFeedbackPosts.first {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("COLLECTOR CLAIMED")
+                            Text("COMPLETED PICKUP")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            Text("\(pendingFeedbackPost.title) was claimed")
+                            Text("\(pendingFeedbackPost.title) is complete")
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
-                            Text("Tell us if pickup happened in daytime and rate the collector.")
+                            Text("Rate the collector to finalize trust score updates.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             Button {
-                                selectedClaimedPost = pendingFeedbackPost
-                                showClaimFeedbackSheet = true
+                                selectedFeedbackPost = pendingFeedbackPost
+                                showFeedbackSheet = true
                             } label: {
-                                Text("Review Claim")
+                                Text("Rate Collector")
                                     .font(.subheadline)
                                     .fontWeight(.semibold)
                                     .frame(maxWidth: .infinity)
@@ -239,9 +239,9 @@ struct DonorHomeView: View {
             }
             .navigationTitle("Home")
             .background(Color(.systemGray6))
-            .sheet(isPresented: $showClaimFeedbackSheet) {
-                if let selectedClaimedPost {
-                    HostClaimFeedbackView(post: selectedClaimedPost)
+            .sheet(isPresented: $showFeedbackSheet) {
+                if let selectedFeedbackPost {
+                    HostClaimFeedbackView(post: selectedFeedbackPost)
                         .environmentObject(dataService)
                 }
             }
@@ -281,13 +281,15 @@ struct DonorHomeView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: AppNotificationService.openCollectionPointNotification)) { notification in
                 guard let postId = notification.userInfo?[AppNotificationService.postIDUserInfoKey] as? String else { return }
-                guard let matched = pendingClaimedPosts.first(where: { $0.id == postId }) else { return }
-                selectedClaimedPost = matched
-                showClaimFeedbackSheet = true
+                if let completedMatch = pendingCompletedFeedbackPosts.first(where: { $0.id == postId }) {
+                    selectedFeedbackPost = completedMatch
+                    showFeedbackSheet = true
+                    return
+                }
             }
             .onAppear {
                 focusMapOnPosts()
-                if !myPosts.isEmpty {
+                if hasPostedAny {
                     showHostTip = false
                 }
             }
@@ -296,27 +298,39 @@ struct DonorHomeView: View {
                     focusMapOnPosts()
                 }
             }
-            .onChange(of: myPosts.count) { _, _ in
+            .onChange(of: activePosts.count) { _, _ in
                 if postsMode == .map {
                     focusMapOnPosts()
                 }
-                if !myPosts.isEmpty {
+                if hasPostedAny {
                     showHostTip = false
                 }
             }
         }
     }
 
-    private var pendingClaimedPosts: [BottleJob] {
-        dataService.myPostedJobs.filter { $0.status == .claimed && $0.collectorRatingByHost == nil }
+    private var pendingCompletedFeedbackPosts: [BottleJob] {
+        dataService.myPostedJobs
+            .filter {
+                $0.status == .completed &&
+                $0.collectorRatingByHost == nil &&
+                ($0.claimedBy?.isEmpty == false)
+            }
+            .sorted { $0.createdAt > $1.createdAt }
     }
 
-    private var myPosts: [BottleJob] {
-        dataService.myPostedJobs.sorted { $0.createdAt > $1.createdAt }
+    private var activePosts: [BottleJob] {
+        dataService.myPostedJobs
+            .filter { $0.status != .completed && $0.status != .cancelled && $0.status != .expired }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private var hasPostedAny: Bool {
+        !dataService.myPostedJobs.isEmpty
     }
 
     private var shouldShowHostTip: Bool {
-        showHostTip && myPosts.isEmpty
+        showHostTip && !hasPostedAny
     }
 
     private func stageLabel(for status: JobStatus) -> String {
@@ -336,7 +350,7 @@ struct DonorHomeView: View {
     }
 
     private func focusMapOnPosts() {
-        guard let first = myPosts.first else { return }
+        guard let first = activePosts.first else { return }
         mapPosition = .region(
             MKCoordinateRegion(
                 center: first.coordinate,
@@ -388,12 +402,21 @@ struct HostClaimFeedbackView: View {
 
                 Section("Pickup Details") {
                     Toggle("Pickup happened in daytime", isOn: $pickedInDaytime)
-                    Picker("Collector rating", selection: $collectorRating) {
+                    HStack(spacing: 10) {
                         ForEach(1...5, id: \.self) { score in
-                            Text("\(score) star\(score == 1 ? "" : "s")").tag(score)
+                            Button {
+                                collectorRating = score
+                            } label: {
+                                Image(systemName: score <= collectorRating ? "star.fill" : "star")
+                                    .font(.title3)
+                                    .foregroundColor(score <= collectorRating ? .yellow : .secondary)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
-                    .pickerStyle(.segmented)
+                    Text("Selected: \(collectorRating) star\(collectorRating == 1 ? "" : "s")")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
 
                 Section {

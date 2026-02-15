@@ -71,6 +71,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
     private var jobsListener: ListenerRegistration?
     private var pickupsListener: ListenerRegistration?
     private var usersListener: ListenerRegistration?
+    private var currentUserListener: ListenerRegistration?
     private var cityImpactListener: ListenerRegistration?
     #endif
 
@@ -110,6 +111,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
                 refreshDerivedCollections()
                 #if canImport(FirebaseFirestore)
                 observePickups()
+                observeCurrentUserProfile()
                 #endif
             }
         } else {
@@ -118,6 +120,10 @@ final class DataService: ObservableObject, DataServiceProtocol {
             completedJobs = []
             allPostsCache = []
             pendingCollectionPointID = nil
+            #if canImport(FirebaseFirestore)
+            currentUserListener?.remove()
+            currentUserListener = nil
+            #endif
         }
     }
 
@@ -159,10 +165,12 @@ final class DataService: ObservableObject, DataServiceProtocol {
         jobsListener?.remove()
         pickupsListener?.remove()
         usersListener?.remove()
+        currentUserListener?.remove()
         cityImpactListener?.remove()
         jobsListener = nil
         pickupsListener = nil
         usersListener = nil
+        currentUserListener = nil
         cityImpactListener = nil
         didProcessInitialJobsSnapshot = false
         cancellables.removeAll()
@@ -356,6 +364,72 @@ final class DataService: ObservableObject, DataServiceProtocol {
         #else
         appState.releaseJob(job)
         #endif
+    }
+
+    func markCollectorNoShow(for post: BottleJob) async throws {
+        guard let host = currentUser else { throw AppError.unauthorized }
+        guard host.type == .donor else { throw AppError.validation("Only hosts can mark no-show.") }
+        guard post.donorId == host.id else { throw AppError.validation("You can only update your own posts.") }
+        guard isClaimedLifecycleStatus(post.status) else {
+            throw AppError.validation("This post is not currently claimed.")
+        }
+        guard isNoShowEligible(post) else {
+            throw AppError.validation("You can mark no-show after the pickup window ends.")
+        }
+
+        #if canImport(FirebaseFirestore)
+        if isFirestoreEnabled {
+            try await db.collection("jobs").document(post.id).updateData([
+                "status": "open",
+                "claimedBy": FieldValue.delete(),
+                "collectorRatingByHost": FieldValue.delete(),
+                "pickedInDaytime": FieldValue.delete(),
+                "hostNoShowMarkedAt": FieldValue.serverTimestamp(),
+                "updatedAt": FieldValue.serverTimestamp()
+            ])
+            reopenPostLocally(post.id)
+        } else {
+            appState.releaseJob(post)
+        }
+        #else
+        appState.releaseJob(post)
+        #endif
+    }
+
+    private func isClaimedLifecycleStatus(_ status: JobStatus) -> Bool {
+        status == .claimed || status == .matched || status == .inProgress || status == .in_progress || status == .arrived
+    }
+
+    private func isNoShowEligible(_ post: BottleJob) -> Bool {
+        let now = Date()
+        if let expiresAt = post.expiresAt {
+            return expiresAt <= now
+        }
+        return post.createdAt.addingTimeInterval(24 * 60 * 60) <= now
+    }
+
+    private func reopenPostLocally(_ postId: String) {
+        if let idx = allPostsCache.firstIndex(where: { $0.id == postId }) {
+            allPostsCache[idx].status = .available
+            allPostsCache[idx].claimedBy = nil
+            allPostsCache[idx].collectorRatingByHost = nil
+            allPostsCache[idx].pickedInDaytime = nil
+        }
+        if let idx = availableJobs.firstIndex(where: { $0.id == postId }) {
+            availableJobs[idx].status = .available
+            availableJobs[idx].claimedBy = nil
+            availableJobs[idx].collectorRatingByHost = nil
+            availableJobs[idx].pickedInDaytime = nil
+        } else if let post = allPostsCache.first(where: { $0.id == postId }) {
+            availableJobs.insert(post, at: 0)
+        }
+        if let idx = myPostedJobs.firstIndex(where: { $0.id == postId }) {
+            myPostedJobs[idx].status = .available
+            myPostedJobs[idx].claimedBy = nil
+            myPostedJobs[idx].collectorRatingByHost = nil
+            myPostedJobs[idx].pickedInDaytime = nil
+        }
+        refreshDerivedCollections()
     }
 
     func disputePickup(_ pickup: PickupHistory) async {
@@ -714,6 +788,9 @@ final class DataService: ObservableObject, DataServiceProtocol {
     ) async throws {
         guard let host = currentUser else { throw AppError.unauthorized }
         guard host.id == job.donorId else { throw AppError.validation("Only hosts can review this pickup.") }
+        guard job.status == .completed else {
+            throw AppError.validation("You can rate only after the collector completes pickup.")
+        }
         guard (1...5).contains(collectorRating) else { throw AppError.validation("Rating must be between 1 and 5.") }
         guard let collectorId = job.claimedBy, !collectorId.isEmpty else {
             throw AppError.validation("No collector is assigned to this post yet.")
@@ -895,6 +972,22 @@ final class DataService: ObservableObject, DataServiceProtocol {
 
 #if canImport(FirebaseFirestore)
 private extension DataService {
+    func observeCurrentUserProfile() {
+        guard let user = currentUser else { return }
+        currentUserListener?.remove()
+        currentUserListener = db.collection("users").document(user.id)
+            .addSnapshotListener { [weak self] snapshot, _ in
+                Task { @MainActor in
+                    guard
+                        let self,
+                        let snapshot,
+                        let parsed = FirestoreUserRecord(document: snapshot)
+                    else { return }
+                    self.currentUser = parsed.user
+                }
+            }
+    }
+
     func observeJobs() {
         jobsListener?.remove()
         jobsListener = db.collection("jobs").addSnapshotListener { [weak self] snapshot, error in
@@ -979,7 +1072,7 @@ private extension DataService {
                     date: post.expiresAt ?? post.createdAt,
                     bottleCount: post.bottleCount,
                     earnings: 0,
-                    rating: Double(post.collectorRatingByHost ?? 5),
+                    rating: Double(post.collectorRatingByHost ?? 0),
                     review: "",
                     proofPhotoBase64: post.bottlePhotoBase64,
                     aiConfidence: post.aiConfidence,
@@ -1646,7 +1739,7 @@ private struct FirestorePickupRecord {
             date: date,
             bottleCount: bottleCount,
             earnings: earnings,
-            rating: 5.0,
+            rating: 0.0,
             review: review,
             proofPhotoBase64: proofPhotoBase64,
             aiConfidence: aiConfidence,

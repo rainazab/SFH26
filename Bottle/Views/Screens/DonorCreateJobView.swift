@@ -78,11 +78,15 @@ struct DonorCreateJobView: View {
                                 Image(systemName: "minus.circle.fill")
                                     .font(.title3)
                                     .foregroundColor(.secondary)
+                                    .frame(width: 34, height: 34)
+                                    .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
 
                             TextField("0", text: $bottleCount)
                                 .keyboardType(.numberPad)
                                 .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity)
 
                             Button {
                                 adjustBottleCount(by: 5)
@@ -90,7 +94,10 @@ struct DonorCreateJobView: View {
                                 Image(systemName: "plus.circle.fill")
                                     .font(.title3)
                                     .foregroundColor(.brandGreen)
+                                    .frame(width: 34, height: 34)
+                                    .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
                         }
 
                         ScrollView(.horizontal, showsIndicators: false) {
