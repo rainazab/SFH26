@@ -241,7 +241,13 @@ struct DonorCreateJobView: View {
             let countResult = try await countTask
             let recycleResult = try await recycleTask
             bottleCount = "\(countResult.count)"
-            aiSuggestion = "Gemini: \(recycleResult.summary) • CRV likely: \(recycleResult.isRecyclable ? "Yes" : "No") • est. value: $\(String(format: "%.2f", recycleResult.estimatedValue))."
+            let materialsText: String
+            if let materials = countResult.materials {
+                materialsText = " • mix P\(materials.plastic)/A\(materials.aluminum)/G\(materials.glass)"
+            } else {
+                materialsText = ""
+            }
+            aiSuggestion = "Gemini confidence \(countResult.confidence)%\(materialsText) • \(recycleResult.summary) • CRV likely: \(recycleResult.isRecyclable ? "Yes" : "No") • est. value: $\(String(format: "%.2f", recycleResult.estimatedValue))."
         } catch {
             aiSuggestion = "Gemini estimate unavailable. You can still post manually."
         }

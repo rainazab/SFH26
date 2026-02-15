@@ -28,6 +28,7 @@ struct CompletePickupView: View {
     @State private var aiNotes: String?
     @State private var aiEstimatedCRV: Double?
     @State private var aiIsRecyclable: Bool?
+    @State private var aiMaterials: MaterialBreakdown?
     @State private var isCountingWithAI = false
     @State private var showImpactBurst = false
     
@@ -100,6 +101,15 @@ struct CompletePickupView: View {
                                 Text(aiNotes)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
+                            }
+                            if let aiMaterials {
+                                HStack(spacing: 10) {
+                                    Text("Plastic: \(aiMaterials.plastic)")
+                                    Text("Aluminum: \(aiMaterials.aluminum)")
+                                    Text("Glass: \(aiMaterials.glass)")
+                                }
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
                             }
                             Button("Use AI Count") { bottleCount = String(aiCount) }
                                 .font(.caption)
@@ -210,6 +220,7 @@ struct CompletePickupView: View {
             aiNotes = classifyResult.summary
             aiEstimatedCRV = classifyResult.estimatedValue
             aiIsRecyclable = classifyResult.isRecyclable
+            aiMaterials = countResult.materials
 
             // AI-first flow: auto-fill from Gemini unless confidence is too low.
             if countResult.confidence >= 60 {

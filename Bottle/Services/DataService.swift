@@ -493,7 +493,12 @@ private extension DataService {
                 if let userCoordinate = self.userCoordinate {
                     parsed = self.withDistances(parsed, from: userCoordinate)
                 }
-                self.availableJobs = parsed.filter { $0.status != .completed && $0.status != .cancelled }
+                let now = Date()
+                self.availableJobs = parsed.filter {
+                    $0.status != .completed &&
+                    $0.status != .cancelled &&
+                    (($0.expiresAt ?? now.addingTimeInterval(1)) > now)
+                }
                 self.refreshDerivedCollections()
                 self.lastSyncError = nil
             }
@@ -595,6 +600,7 @@ private extension DataService {
             availableTime: availableTime,
             claimedBy: nil,
             createdAt: Date(),
+            expiresAt: Date().addingTimeInterval(24 * 60 * 60),
             bottlePhotoBase64: bottlePhotoBase64,
             locationPhotoBase64: locationPhotoBase64
         )
@@ -670,6 +676,7 @@ private struct FirestoreJobRecord {
     let availableTime: String
     var claimedBy: String?
     let createdAt: Date
+    let expiresAt: Date?
     let bottlePhotoBase64: String?
     let locationPhotoBase64: String?
 
@@ -723,6 +730,7 @@ private struct FirestoreJobRecord {
         } else {
             createdAt = Date()
         }
+        let expiresAt = (data["expiresAt"] as? Timestamp)?.dateValue()
 
         self.id = id
         self.donorId = donorId
@@ -742,6 +750,7 @@ private struct FirestoreJobRecord {
         self.availableTime = availableTime
         self.claimedBy = data["claimedBy"] as? String
         self.createdAt = createdAt
+        self.expiresAt = expiresAt
         self.bottlePhotoBase64 = (data["bottlePhotoBase64"] as? String) ?? (data["bottle_photo_base64"] as? String)
         self.locationPhotoBase64 = (data["locationPhotoBase64"] as? String) ?? (data["location_photo_base64"] as? String)
     }
@@ -770,6 +779,7 @@ private struct FirestoreJobRecord {
         availableTime: String,
         claimedBy: String?,
         createdAt: Date,
+        expiresAt: Date?,
         bottlePhotoBase64: String?,
         locationPhotoBase64: String?
     ) {
@@ -791,6 +801,7 @@ private struct FirestoreJobRecord {
         self.availableTime = availableTime
         self.claimedBy = claimedBy
         self.createdAt = createdAt
+        self.expiresAt = expiresAt
         self.bottlePhotoBase64 = bottlePhotoBase64
         self.locationPhotoBase64 = locationPhotoBase64
     }
@@ -816,7 +827,8 @@ private struct FirestoreJobRecord {
             createdAt: createdAt,
             distance: nil,
             bottlePhotoBase64: bottlePhotoBase64,
-            locationPhotoBase64: locationPhotoBase64
+            locationPhotoBase64: locationPhotoBase64,
+            expiresAt: expiresAt
         )
     }
 
@@ -849,6 +861,7 @@ private struct FirestoreJobRecord {
             "availableTime": availableTime,
             "claimedBy": claimedBy ?? NSNull(),
             "createdAt": Timestamp(date: createdAt),
+            "expiresAt": expiresAt.map(Timestamp.init(date:)) as Any,
             "bottlePhotoBase64": bottlePhotoBase64 as Any,
             "locationPhotoBase64": locationPhotoBase64 as Any
         ]

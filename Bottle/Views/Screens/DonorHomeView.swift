@@ -22,7 +22,7 @@ struct DonorHomeView: View {
                     HStack {
                         Image(systemName: "waveform.path.ecg")
                             .foregroundColor(.brandBlueLight)
-                        Text("\(max(dataService.cityBottlesToday, 1)) bottles diverted in SF today")
+                        Text("\(dataService.cityBottlesToday) bottles diverted in SF today")
                             .font(.subheadline)
                             .fontWeight(.semibold)
                         Spacer()
