@@ -29,6 +29,7 @@ struct DonorCreateJobView: View {
     @State private var defaultAddressValue: String?
     @State private var defaultAddressCoordinate: CLLocationCoordinate2D?
     @State private var saveAsDefaultAddress = false
+    @State private var searchTask: Task<Void, Never>?
     @FocusState private var isLocationFieldFocused: Bool
     
     @State private var isSubmitting = false
@@ -181,7 +182,26 @@ struct DonorCreateJobView: View {
                                     coordinate = nil
                                     address = ""
                                 }
-                                searchLocations()
+
+                                searchTask?.cancel()
+
+                                if trimmed.isEmpty {
+                                    locationResults = []
+                                    isSearchingLocations = false
+                                    return
+                                }
+
+                                searchTask = Task {
+                                    do {
+                                        try await Task.sleep(nanoseconds: 300_000_000)
+                                        guard !Task.isCancelled else { return }
+                                        await MainActor.run {
+                                            searchLocations()
+                                        }
+                                    } catch {
+                                        // Cancelled
+                                    }
+                                }
                             }
 
                         if !locationQuery.isEmpty {
@@ -344,6 +364,9 @@ struct DonorCreateJobView: View {
             }
             .onAppear {
                 loadDefaultAddressIfNeeded()
+            }
+            .onDisappear {
+                searchTask?.cancel()
             }
         }
     }
