@@ -20,8 +20,6 @@ struct DonorHomeView: View {
     )
     @State private var selectedFeedbackPost: BottleJob?
     @State private var selectedPostForEdit: BottleJob?
-    @State private var showFeedbackSheet = false
-    @State private var showEditPostSheet = false
     @State private var postPendingDelete: BottleJob?
     @State private var showDeleteConfirmation = false
     @State private var showActionError = false
@@ -136,7 +134,6 @@ struct DonorHomeView: View {
                                             HStack(spacing: 10) {
                                                 Button {
                                                     selectedPostForEdit = post
-                                                    showEditPostSheet = true
                                                 } label: {
                                                     Label("Edit", systemImage: "pencil")
                                                         .font(.caption)
@@ -188,7 +185,6 @@ struct DonorHomeView: View {
                                 .foregroundColor(.secondary)
                             Button {
                                 selectedFeedbackPost = pendingFeedbackPost
-                                showFeedbackSheet = true
                             } label: {
                                 Text("Rate Collector")
                                     .font(.subheadline)
@@ -197,6 +193,43 @@ struct DonorHomeView: View {
                                     .padding(.vertical, 10)
                                     .background(Color.brandBlueLight.opacity(0.2))
                                     .foregroundColor(.brandBlueDark)
+                                    .cornerRadius(10)
+                            }
+                        }
+                        .padding()
+                        .background(Color(.systemBackground))
+                        .cornerRadius(16)
+                        .padding(.horizontal)
+                    }
+
+                    if let noShowPost = pendingNoShowPosts.first {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("COLLECTOR NO-SHOW?")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("\(noShowPost.title) is overdue")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            Text("If collector didn’t arrive within the day, reopen this post.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Button {
+                                Task {
+                                    do {
+                                        try await dataService.markCollectorNoShow(for: noShowPost)
+                                    } catch {
+                                        actionErrorMessage = error.localizedDescription
+                                        showActionError = true
+                                    }
+                                }
+                            } label: {
+                                Text("Mark No-Show")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(Color.orange.opacity(0.2))
+                                    .foregroundColor(.orange)
                                     .cornerRadius(10)
                             }
                         }
@@ -239,17 +272,13 @@ struct DonorHomeView: View {
             }
             .navigationTitle("Home")
             .background(Color(.systemGray6))
-            .sheet(isPresented: $showFeedbackSheet) {
-                if let selectedFeedbackPost {
-                    HostClaimFeedbackView(post: selectedFeedbackPost)
-                        .environmentObject(dataService)
-                }
+            .sheet(item: $selectedFeedbackPost) { post in
+                HostClaimFeedbackView(post: post)
+                    .environmentObject(dataService)
             }
-            .sheet(isPresented: $showEditPostSheet) {
-                if let selectedPostForEdit {
-                    DonorCreateJobView(existingPost: selectedPostForEdit)
-                        .environmentObject(dataService)
-                }
+            .sheet(item: $selectedPostForEdit) { post in
+                DonorCreateJobView(existingPost: post)
+                    .environmentObject(dataService)
             }
             .confirmationDialog(
                 "Delete this post?",
@@ -283,7 +312,6 @@ struct DonorHomeView: View {
                 guard let postId = notification.userInfo?[AppNotificationService.postIDUserInfoKey] as? String else { return }
                 if let completedMatch = pendingCompletedFeedbackPosts.first(where: { $0.id == postId }) {
                     selectedFeedbackPost = completedMatch
-                    showFeedbackSheet = true
                     return
                 }
             }
@@ -315,6 +343,16 @@ struct DonorHomeView: View {
                 $0.status == .completed &&
                 $0.collectorRatingByHost == nil &&
                 ($0.claimedBy?.isEmpty == false)
+            }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private var pendingNoShowPosts: [BottleJob] {
+        let now = Date()
+        return activePosts
+            .filter {
+                ($0.status == .claimed || $0.status == .matched || $0.status == .inProgress || $0.status == .in_progress || $0.status == .arrived) &&
+                (($0.expiresAt ?? $0.createdAt.addingTimeInterval(24 * 60 * 60)) <= now)
             }
             .sorted { $0.createdAt > $1.createdAt }
     }

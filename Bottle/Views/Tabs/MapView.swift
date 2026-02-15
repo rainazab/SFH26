@@ -20,7 +20,6 @@ struct MapView: View {
     )
     
     @State private var selectedJob: BottleJob?
-    @State private var showingJobDetail = false
     @State private var isPulsing = true
     @State private var todayCO2: Double = 0
     @State private var showNewJobToast = false
@@ -69,7 +68,6 @@ struct MapView: View {
                         Button(action: {
                             HapticManager.shared.impact(.light)
                             selectedJob = job
-                            showingJobDetail = true
                         }) {
                             ZStack {
                                 // Pulse effect for high-value jobs
@@ -224,7 +222,6 @@ struct MapView: View {
                             HapticManager.shared.impact(.light)
                             if let toastPostID, let match = jobs.first(where: { $0.id == toastPostID }) {
                                 selectedJob = match
-                                showingJobDetail = true
                             }
                             withAnimation {
                                 showNewJobToast = false
@@ -245,11 +242,9 @@ struct MapView: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .sheet(isPresented: $showingJobDetail) {
-            if let job = selectedJob {
-                JobDetailView(job: job)
-                    .environmentObject(locationService)
-            }
+        .sheet(item: $selectedJob) { job in
+            JobDetailView(job: job)
+                .environmentObject(locationService)
         }
         .onAppear {
             if let userLocation = locationService.userLocation?.coordinate {
@@ -342,13 +337,9 @@ struct MapView: View {
                 span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
             )
         )
-        if showingJobDetail {
-            showingJobDetail = false
-        }
         selectedJob = nil
         DispatchQueue.main.async {
             selectedJob = job
-            showingJobDetail = true
         }
     }
 
@@ -357,7 +348,6 @@ struct MapView: View {
         guard let match = jobs.first(where: { $0.id == postId }) else { return }
 
         selectedJob = match
-        showingJobDetail = true
         position = .region(
             MKCoordinateRegion(
                 center: match.coordinate,

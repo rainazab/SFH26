@@ -12,7 +12,6 @@ struct ActivityView: View {
     @EnvironmentObject var dataService: DataService
     @State private var selectedFilter: ActivityFilter = .all
     @State private var selectedClaimedJob: BottleJob?
-    @State private var showingCompletePickup = false
     
     enum ActivityFilter: String, CaseIterable {
         case all = "All"
@@ -134,7 +133,6 @@ struct ActivityView: View {
                                 ForEach(displayedCollectorClaimedJobs) { job in
                                     ClaimedJobCard(job: job) {
                                         selectedClaimedJob = job
-                                        showingCompletePickup = true
                                     }
                                     Divider().padding(.leading, 80)
                                 }
@@ -165,10 +163,8 @@ struct ActivityView: View {
                 }
             }
             .navigationTitle(dataService.currentUser?.type == .collector ? "Pickups" : "History")
-            .sheet(isPresented: $showingCompletePickup) {
-                if let job = selectedClaimedJob {
-                    CompletePickupView(job: job)
-                }
+            .sheet(item: $selectedClaimedJob) { job in
+                CompletePickupView(job: job)
             }
         }
     }

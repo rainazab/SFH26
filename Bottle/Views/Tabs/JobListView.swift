@@ -18,13 +18,11 @@ struct JobListView: View {
     @State private var minBottleCount = 0.0
     @State private var maxDistance = 100.0
     @State private var selectedJob: BottleJob?
-    @State private var showingJobDetail = false
     @State private var claimCandidate: BottleJob?
     @State private var isClaiming = false
     @State private var showClaimError = false
     @State private var claimErrorMessage = ""
     @State private var activeClaimedJob: BottleJob?
-    @State private var showActivePickupSheet = false
     
     private var baseJobs: [BottleJob] {
         if dataService.currentUser?.type == .collector {
@@ -55,7 +53,6 @@ struct JobListView: View {
                         Spacer()
                         Button("View Active") {
                             activeClaimedJob = dataService.myClaimedJobs.first
-                            showActivePickupSheet = activeClaimedJob != nil
                         }
                         .font(.caption)
                         .fontWeight(.semibold)
@@ -191,7 +188,6 @@ struct JobListView: View {
                                 }
                                     .onTapGesture {
                                         selectedJob = job
-                                        showingJobDetail = true
                                     }
                                     .accessibilityElement(children: .contain)
                                     .accessibilityHint("Opens post details")
@@ -209,16 +205,12 @@ struct JobListView: View {
             .sheet(isPresented: $showingFilters) {
                 FiltersView(minBottleCount: $minBottleCount, maxDistance: $maxDistance)
             }
-            .sheet(isPresented: $showingJobDetail) {
-                if let job = selectedJob {
-                    JobDetailView(job: job)
-                        .environmentObject(locationService)
-                }
+            .sheet(item: $selectedJob) { job in
+                JobDetailView(job: job)
+                    .environmentObject(locationService)
             }
-            .sheet(isPresented: $showActivePickupSheet) {
-                if let activeClaimedJob {
-                    CompletePickupView(job: activeClaimedJob)
-                }
+            .sheet(item: $activeClaimedJob) { job in
+                CompletePickupView(job: job)
             }
             .alert("Claim this collection?", isPresented: Binding(
                 get: { claimCandidate != nil },
@@ -287,7 +279,6 @@ struct JobListView: View {
         guard let postId = dataService.pendingCollectionPointID else { return }
         guard let match = filteredJobs.first(where: { $0.id == postId }) ?? baseJobs.first(where: { $0.id == postId }) else { return }
         selectedJob = match
-        showingJobDetail = true
         dataService.clearPendingCollectionPointOpen(postId)
     }
 }
