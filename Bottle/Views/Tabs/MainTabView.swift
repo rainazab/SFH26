@@ -188,7 +188,11 @@ struct CollectorJobsView: View {
                     .padding(.horizontal, 8)
                 }
             } else {
-                VStack(spacing: 0) {
+                ZStack(alignment: .top) {
+                    Color(.systemGray6)
+                        .ignoresSafeArea()
+
+                    VStack(spacing: 0) {
                     if showCollectorTip {
                         HStack(alignment: .top, spacing: 10) {
                             Image(systemName: "sparkles")
@@ -215,17 +219,27 @@ struct CollectorJobsView: View {
                         .padding(.top, 8)
                     }
 
-                    Picker("View", selection: $mode) {
-                        ForEach(JobsMode.allCases, id: \.self) { option in
-                            Text(option.rawValue).tag(option)
+                        Picker("View", selection: $mode) {
+                            ForEach(JobsMode.allCases, id: \.self) { option in
+                                Text(option.rawValue).tag(option)
+                            }
                         }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
-                    .padding(.top, 8)
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(Color.white.opacity(0.55), lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.16), radius: 10, y: 4)
+                        .padding(.horizontal, 8)
+                        .padding(.top, 8)
 
-                    JobListView()
-                        .environmentObject(locationService)
+                        JobListView()
+                            .environmentObject(locationService)
+                    }
                 }
             }
         }

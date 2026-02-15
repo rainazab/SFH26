@@ -250,6 +250,7 @@ struct JobListView: View {
                 openPendingCollectionPointIfPossible()
             }
         }
+        .background(Color(.systemGray6).ignoresSafeArea())
     }
 
     private var isBaseEmptyState: Bool {

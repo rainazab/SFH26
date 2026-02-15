@@ -11,6 +11,7 @@ import MapKit
 struct MapView: View {
     @EnvironmentObject var locationService: LocationService
     @EnvironmentObject var dataService: DataService
+    @Environment(\.colorScheme) private var colorScheme
     var onShowList: (() -> Void)? = nil
     @State private var position: MapCameraPosition = .region(
         MKCoordinateRegion(
@@ -115,7 +116,7 @@ struct MapView: View {
                             AnimatedNumber(value: todayCO2, format: "%.1f")
                                 .font(.title)
                                 .fontWeight(.bold)
-                                .foregroundColor(Color.brandBlueLight)
+                                .foregroundColor(colorScheme == .dark ? Color.brandBlueLight : Color.brandBlueDark)
                             Text("kg CO₂ saved")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
