@@ -12,6 +12,15 @@ struct ImpactView: View {
     @StateObject private var dataService = DataService.shared
     private var impactStats: ImpactStats { dataService.impactStats }
     
+    private func medalForRank(_ rank: Int) -> String? {
+        switch rank {
+        case 1: return "🥇"
+        case 2: return "🥈"
+        case 3: return "🥉"
+        default: return nil
+        }
+    }
+    
     var body: some View {
         NavigationView {
             ScrollView {
@@ -92,11 +101,21 @@ struct ImpactView: View {
                         }
                         
                         VStack(spacing: 12) {
-                            LeaderboardRow(rank: 1, name: "Sarah M.", bottles: 1240, isCurrentUser: false, medal: "🥇")
-                            LeaderboardRow(rank: 2, name: "Oakland Community Center", bottles: 980, isCurrentUser: false, medal: "🥈")
-                            LeaderboardRow(rank: 3, name: "You (Miguel R.)", bottles: 450, isCurrentUser: true, medal: "🥉")
-                            LeaderboardRow(rank: 4, name: "David L.", bottles: 380, isCurrentUser: false, medal: nil)
-                            LeaderboardRow(rank: 5, name: "Mission Bar", bottles: 320, isCurrentUser: false, medal: nil)
+                            ForEach(Array(dataService.leaderboardUsers.enumerated()), id: \.element.id) { index, user in
+                                LeaderboardRow(
+                                    rank: index + 1,
+                                    name: user.name,
+                                    bottles: user.totalBottles,
+                                    isCurrentUser: user.id == dataService.currentUser?.id,
+                                    medal: medalForRank(index + 1)
+                                )
+                            }
+                            if dataService.leaderboardUsers.isEmpty {
+                                Text("Leaderboard will populate as users complete pickups.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
                         }
                         
                         Button(action: {}) {

@@ -79,11 +79,18 @@ struct ProfileView: View {
                                 Text(String(format: "%.1f", profile.rating))
                                     .font(.headline)
                                     .foregroundColor(.secondary)
+                                Text("(\(max(profile.reviewCount, dataService.completedJobs.count)) reviews)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
                             
                             Text("Member since \(profile.joinDate.formatted(date: .abbreviated, time: .omitted))")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
+
+                            Text("\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: profile.totalBottles))) kg CO₂ saved")
+                                .font(.caption)
+                                .foregroundColor(.brandBlueLight)
                         }
                         
                         // Quick Stats
@@ -97,6 +104,51 @@ struct ProfileView: View {
                     .background(Color(.systemBackground))
                     .cornerRadius(20)
                     .shadow(color: Color.black.opacity(0.05), radius: 8)
+                    .padding(.horizontal)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("ACTIVITY TIMELINE")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        if dataService.activityTimeline.isEmpty {
+                            Text("No activity yet.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            ForEach(Array(dataService.activityTimeline.prefix(6))) { event in
+                                HStack(alignment: .top, spacing: 10) {
+                                    Circle()
+                                        .fill(colorForEvent(event.type))
+                                        .frame(width: 8, height: 8)
+                                        .padding(.top, 5)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(event.title)
+                                            .font(.subheadline)
+                                        if let amount = event.amount {
+                                            Text("+$\(String(format: "%.2f", amount))")
+                                                .font(.caption)
+                                                .foregroundColor(.brandGreen)
+                                        } else if let bottles = event.bottles {
+                                            Text("\(bottles) bottles")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        Text(event.date.formatted(date: .abbreviated, time: .shortened))
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                }
+                                if event.id != dataService.activityTimeline.prefix(6).last?.id {
+                                    Divider()
+                                }
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color(.systemBackground))
+                    .cornerRadius(12)
                     .padding(.horizontal)
                     .padding(.top)
                     
@@ -225,6 +277,14 @@ struct ProfileView: View {
             return nil
         }
         return image
+    }
+
+    private func colorForEvent(_ type: ActivityType) -> Color {
+        switch type {
+        case .pickupCompleted: return .brandBlueLight
+        case .earningsAdded: return .brandGreen
+        case .badgeEarned: return .accentGold
+        }
     }
 }
 

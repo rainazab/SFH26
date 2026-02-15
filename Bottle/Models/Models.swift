@@ -134,6 +134,7 @@ struct UserProfile: Codable, Identifiable {
     var rating: Double
     var totalBottles: Int
     var totalEarnings: Double
+    var reviewCount: Int = 0
     let joinDate: Date
     var badges: [Badge]
     var fcmToken: String?
@@ -144,6 +145,7 @@ struct UserProfile: Codable, Identifiable {
         case name, email, type, rating
         case totalBottles = "total_bottles"
         case totalEarnings = "total_earnings"
+        case reviewCount = "review_count"
         case joinDate = "join_date"
         case badges
         case fcmToken = "fcm_token"
@@ -252,6 +254,21 @@ struct WalletTransaction: Codable, Identifiable {
     let title: String
     let amount: Double
     let bottleCount: Int
+}
+
+enum ActivityType: String, Codable {
+    case pickupCompleted
+    case earningsAdded
+    case badgeEarned
+}
+
+struct ActivityEvent: Identifiable, Codable {
+    let id: String
+    let type: ActivityType
+    let title: String
+    let amount: Double?
+    let bottles: Int?
+    let date: Date
 }
 
 // MARK: - Mock Data (Hackathon Demo)

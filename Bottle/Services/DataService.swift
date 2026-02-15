@@ -27,6 +27,8 @@ final class DataService: ObservableObject, DataServiceProtocol {
     @Published var currentUser: UserProfile?
     @Published var impactStats: ImpactStats = .mockStats
     @Published var walletTransactions: [WalletTransaction] = []
+    @Published var leaderboardUsers: [UserProfile] = []
+    @Published var activityTimeline: [ActivityEvent] = []
     @Published var backendStatus: String = "local"
     @Published var lastSyncError: String?
 
@@ -42,6 +44,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
     private let db = Firestore.firestore()
     private var jobsListener: ListenerRegistration?
     private var pickupsListener: ListenerRegistration?
+    private var usersListener: ListenerRegistration?
     #endif
 
     private enum StorageKeys {
@@ -80,6 +83,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
             backendStatus = "firestore"
             observeJobs()
             observePickups()
+            observeLeaderboard()
         }
         #else
         isFirestoreEnabled = false
@@ -92,8 +96,10 @@ final class DataService: ObservableObject, DataServiceProtocol {
         #if canImport(FirebaseFirestore)
         jobsListener?.remove()
         pickupsListener?.remove()
+        usersListener?.remove()
         jobsListener = nil
         pickupsListener = nil
+        usersListener = nil
         cancellables.removeAll()
         bindCurrentUser()
         #endif
@@ -110,6 +116,12 @@ final class DataService: ObservableObject, DataServiceProtocol {
             .combineLatest(appState.$currentUser)
             .map { jobs, user in jobs.filter { $0.donorId == user.id } }
             .assign(to: &$myPostedJobs)
+
+        appState.$allUsers
+            .map { users in
+                users.sorted { $0.totalBottles > $1.totalBottles }
+            }
+            .assign(to: &$leaderboardUsers)
     }
 
     private func refreshDerivedCollections() {
@@ -117,16 +129,46 @@ final class DataService: ObservableObject, DataServiceProtocol {
         myPostedJobs = availableJobs.filter { $0.donorId == user.id }
         myClaimedJobs = availableJobs.filter { $0.claimedBy == user.id && $0.status == .claimed }
         recalculateImpactFromHistory()
+        rebuildActivityTimeline()
     }
 
     private func recalculateImpactFromHistory() {
         let bottles = completedJobs.reduce(0) { $0 + $1.bottleCount }
-        let value = completedJobs.reduce(0.0) { $0 + $1.earnings }
-        let co2 = Double(bottles) * 0.045
+        let transactionValue = walletTransactions.reduce(0.0) { $0 + $1.amount }
+        let value = transactionValue > 0 ? transactionValue : completedJobs.reduce(0.0) { $0 + $1.earnings }
+        let co2 = ClimateImpactCalculator.co2Saved(bottles: bottles)
         impactStats.totalBottles = bottles
         impactStats.totalEarnings = value
         impactStats.co2Saved = co2
-        impactStats.treesEquivalent = Int(co2 / 20.0)
+        impactStats.treesEquivalent = Int(ClimateImpactCalculator.treesEquivalent(co2Kg: co2))
+    }
+
+    private func rebuildActivityTimeline() {
+        var events: [ActivityEvent] = []
+
+        events += completedJobs.map { pickup in
+            ActivityEvent(
+                id: "pickup-\(pickup.id)",
+                type: .pickupCompleted,
+                title: "Completed \(pickup.jobTitle)",
+                amount: pickup.earnings,
+                bottles: pickup.bottleCount,
+                date: pickup.date
+            )
+        }
+
+        events += walletTransactions.map { tx in
+            ActivityEvent(
+                id: "earn-\(tx.id)",
+                type: .earningsAdded,
+                title: tx.title,
+                amount: tx.amount,
+                bottles: tx.bottleCount,
+                date: tx.date
+            )
+        }
+
+        activityTimeline = events.sorted { $0.date > $1.date }
     }
 
     func claimJob(_ job: BottleJob) async throws {
@@ -190,6 +232,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
         )
         walletTransactions.insert(transaction, at: 0)
         persistWallet()
+        rebuildActivityTimeline()
     }
 
     func completeJob(
@@ -225,6 +268,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
         )
         walletTransactions.insert(transaction, at: 0)
         persistWallet()
+        rebuildActivityTimeline()
     }
 
     func createJob(
@@ -411,6 +455,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
            let decoded = try? decoder.decode([WalletTransaction].self, from: data) {
             walletTransactions = decoded
         }
+        rebuildActivityTimeline()
     }
 }
 
@@ -456,6 +501,19 @@ private extension DataService {
                         .sorted { $0.date > $1.date }
                     self.recalculateImpactFromHistory()
                     self.lastSyncError = nil
+                }
+            }
+    }
+
+    func observeLeaderboard() {
+        usersListener?.remove()
+        usersListener = db.collection("users")
+            .order(by: "totalBottlesDiverted", descending: true)
+            .limit(to: 10)
+            .addSnapshotListener { [weak self] snapshot, _ in
+                Task { @MainActor in
+                    guard let self, let docs = snapshot?.documents else { return }
+                    self.leaderboardUsers = docs.compactMap(FirestoreUserRecord.init(document:)).map(\.user)
                 }
             }
     }
@@ -817,6 +875,56 @@ private struct FirestorePickupRecord {
             "date": Timestamp(date: date),
             "proofPhotoBase64": proofPhotoBase64 as Any
         ]
+    }
+}
+
+private struct FirestoreUserRecord {
+    let id: String
+    let name: String
+    let email: String
+    let type: UserType
+    let rating: Double
+    let totalBottles: Int
+    let totalEarnings: Double
+    let reviewCount: Int
+    let joinDate: Date
+    let profilePhotoBase64: String?
+
+    init?(document: DocumentSnapshot) {
+        guard let data = document.data() else { return nil }
+        let roleRaw = (data["role"] as? String) ?? (data["type"] as? String) ?? UserType.collector.rawValue
+        let type = UserType(rawValue: roleRaw) ?? .collector
+        let joinDate = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+        self.id = document.documentID
+        self.name = (data["name"] as? String) ?? "User"
+        self.email = (data["email"] as? String) ?? ""
+        self.type = type
+        self.rating = (data["rating"] as? Double) ?? (data["rating"] as? NSNumber)?.doubleValue ?? 4.8
+        self.totalBottles = (data["totalBottlesDiverted"] as? Int)
+            ?? (data["totalBottlesDiverted"] as? NSNumber)?.intValue
+            ?? (data["totalBottles"] as? Int)
+            ?? (data["totalBottles"] as? NSNumber)?.intValue
+            ?? 0
+        self.totalEarnings = (data["totalEarnings"] as? Double) ?? (data["totalEarnings"] as? NSNumber)?.doubleValue ?? 0
+        self.reviewCount = (data["reviewCount"] as? Int) ?? (data["reviewCount"] as? NSNumber)?.intValue ?? 0
+        self.joinDate = joinDate
+        self.profilePhotoBase64 = (data["profilePhotoBase64"] as? String) ?? (data["profilePhotoUrl"] as? String)
+    }
+
+    var user: UserProfile {
+        UserProfile(
+            id: id,
+            name: name,
+            email: email,
+            type: type,
+            rating: rating,
+            totalBottles: totalBottles,
+            totalEarnings: totalEarnings,
+            reviewCount: reviewCount,
+            joinDate: joinDate,
+            badges: [],
+            profilePhotoUrl: profilePhotoBase64
+        )
     }
 }
 #endif
