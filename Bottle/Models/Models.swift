@@ -112,6 +112,8 @@ struct BottleJob: Codable, Identifiable {
     var expiresAt: Date? = nil
     var aiConfidence: Int? = nil
     var materialBreakdown: MaterialBreakdown? = nil
+    var pickedInDaytime: Bool? = nil
+    var collectorRatingByHost: Int? = nil
     
     var coordinate: CLLocationCoordinate2D {
         location.coordinate
@@ -139,6 +141,8 @@ struct BottleJob: Codable, Identifiable {
         case expiresAt = "expires_at"
         case aiConfidence = "ai_confidence"
         case materialBreakdown = "material_breakdown"
+        case pickedInDaytime = "picked_in_daytime"
+        case collectorRatingByHost = "collector_rating_by_host"
     }
 }
 

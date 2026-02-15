@@ -62,6 +62,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
     private var userCoordinate: CLLocationCoordinate2D?
     private var isFirestoreEnabled = false
     private var didProcessInitialJobsSnapshot = false
+    private var hostFeedbackSubmittedPostIDs: Set<String> = []
 
     #if canImport(FirebaseFirestore)
     private let db = Firestore.firestore()
@@ -469,6 +470,51 @@ final class DataService: ObservableObject, DataServiceProtocol {
         #endif
     }
 
+    func hasSubmittedHostFeedback(for postId: String) -> Bool {
+        hostFeedbackSubmittedPostIDs.contains(postId)
+    }
+
+    func submitHostPickupFeedback(
+        for job: BottleJob,
+        pickedUpDuringDay: Bool,
+        collectorRating: Int
+    ) async throws {
+        guard let user = currentUser else { throw AppError.unauthorized }
+        guard user.type == .donor else { throw AppError.validation("Only hosts can submit pickup feedback.") }
+        guard let collectorId = job.claimedBy, !collectorId.isEmpty else {
+            throw AppError.validation("No collector is assigned to this post yet.")
+        }
+
+        if hostFeedbackSubmittedPostIDs.contains(job.id) { return }
+        let normalizedRating = max(1, min(5, collectorRating))
+
+        #if canImport(FirebaseFirestore)
+        if isFirestoreEnabled {
+            try await submitHostFeedbackInFirestore(
+                postId: job.id,
+                donorId: user.id,
+                collectorId: collectorId,
+                rating: normalizedRating,
+                pickedUpDuringDay: pickedUpDuringDay
+            )
+        } else {
+            submitHostFeedbackLocally(
+                collectorId: collectorId,
+                rating: normalizedRating,
+                pickedUpDuringDay: pickedUpDuringDay
+            )
+        }
+        #else
+        submitHostFeedbackLocally(
+            collectorId: collectorId,
+            rating: normalizedRating,
+            pickedUpDuringDay: pickedUpDuringDay
+        )
+        #endif
+
+        hostFeedbackSubmittedPostIDs.insert(job.id)
+    }
+
     func updateJobDistances(from userLocation: CLLocationCoordinate2D) {
         userCoordinate = userLocation
         if isFirestoreEnabled {
@@ -476,6 +522,71 @@ final class DataService: ObservableObject, DataServiceProtocol {
             refreshDerivedCollections()
         } else {
             appState.updateLocation(userLocation)
+        }
+    }
+
+    func submitHostClaimFeedback(
+        for job: BottleJob,
+        pickedInDaytime: Bool,
+        collectorRating: Int
+    ) async throws {
+        guard let host = currentUser else { throw AppError.unauthorized }
+        guard host.id == job.donorId else { throw AppError.validation("Only hosts can review this pickup.") }
+        guard (1...5).contains(collectorRating) else { throw AppError.validation("Rating must be between 1 and 5.") }
+        guard let collectorId = job.claimedBy, !collectorId.isEmpty else {
+            throw AppError.validation("No collector is assigned to this post yet.")
+        }
+
+        #if canImport(FirebaseFirestore)
+        if isFirestoreEnabled {
+            try await submitHostClaimFeedbackInFirestore(
+                jobId: job.id,
+                collectorId: collectorId,
+                pickedInDaytime: pickedInDaytime,
+                collectorRating: collectorRating
+            )
+        } else {
+            applyHostFeedbackLocally(jobId: job.id, pickedInDaytime: pickedInDaytime, collectorRating: collectorRating)
+        }
+        #else
+        applyHostFeedbackLocally(jobId: job.id, pickedInDaytime: pickedInDaytime, collectorRating: collectorRating)
+        #endif
+    }
+
+    private func submitHostFeedbackLocally(
+        collectorId: String,
+        rating: Int,
+        pickedUpDuringDay: Bool
+    ) {
+        let didPickupValue = pickedUpDuringDay ? 100.0 : 0.0
+
+        if let idx = appState.allUsers.firstIndex(where: { $0.id == collectorId }) {
+            var collector = appState.allUsers[idx]
+            let currentCount = max(0, collector.reviewCount)
+            let newCount = currentCount + 1
+            let newRating = ((collector.rating * Double(currentCount)) + Double(rating)) / Double(newCount)
+            let newOnTimeRate = ((collector.onTimeRate * Double(currentCount)) + didPickupValue) / Double(newCount)
+            let reliability = max(0, min(100, (newOnTimeRate * 0.6) + (newRating * 20 * 0.4)))
+
+            collector.rating = newRating
+            collector.reviewCount = newCount
+            collector.onTimeRate = newOnTimeRate
+            collector.reliabilityScore = reliability
+            appState.allUsers[idx] = collector
+            if currentUser?.id == collector.id {
+                currentUser = collector
+            }
+        }
+
+        if let idx = leaderboardUsers.firstIndex(where: { $0.id == collectorId }) {
+            var collector = leaderboardUsers[idx]
+            let currentCount = max(0, collector.reviewCount)
+            let newCount = currentCount + 1
+            collector.rating = ((collector.rating * Double(currentCount)) + Double(rating)) / Double(newCount)
+            collector.reviewCount = newCount
+            collector.onTimeRate = ((collector.onTimeRate * Double(currentCount)) + didPickupValue) / Double(newCount)
+            collector.reliabilityScore = max(0, min(100, (collector.onTimeRate * 0.6) + (collector.rating * 20 * 0.4)))
+            leaderboardUsers[idx] = collector
         }
     }
 
@@ -744,7 +855,9 @@ private extension DataService {
             aiConfidence: nil,
             materialBreakdown: nil,
             bottlePhotoBase64: bottlePhotoBase64,
-            locationPhotoBase64: locationPhotoBase64
+            locationPhotoBase64: locationPhotoBase64,
+            pickedInDaytime: nil,
+            collectorRatingByHost: nil
         )
         try await db.collection("jobs").document(id).setData(payload.dictionary)
     }
@@ -795,6 +908,123 @@ private extension DataService {
         ], merge: true)
     }
 
+    private func submitHostClaimFeedbackInFirestore(
+        jobId: String,
+        collectorId: String,
+        pickedInDaytime: Bool,
+        collectorRating: Int
+    ) async throws {
+        let jobRef = db.collection("jobs").document(jobId)
+        let collectorRef = db.collection("users").document(collectorId)
+        let now = Date()
+
+        _ = try await db.runTransaction { transaction, _ in
+            let collectorSnap: DocumentSnapshot
+            do {
+                collectorSnap = try transaction.getDocument(collectorRef)
+            } catch {
+                return nil
+            }
+
+            let prevRating = (collectorSnap.data()?["rating"] as? Double)
+                ?? (collectorSnap.data()?["rating"] as? NSNumber)?.doubleValue
+                ?? 4.5
+            let prevReviewCount = (collectorSnap.data()?["reviewCount"] as? Int)
+                ?? (collectorSnap.data()?["reviewCount"] as? NSNumber)?.intValue
+                ?? 0
+            let newReviewCount = prevReviewCount + 1
+            let newRating = ((prevRating * Double(prevReviewCount)) + Double(collectorRating)) / Double(max(newReviewCount, 1))
+
+            transaction.setData([
+                "pickedInDaytime": pickedInDaytime,
+                "collectorRatingByHost": collectorRating,
+                "hostFeedbackUpdatedAt": Timestamp(date: now)
+            ], forDocument: jobRef, merge: true)
+
+            transaction.setData([
+                "rating": newRating,
+                "reviewCount": newReviewCount,
+                "updatedAt": Timestamp(date: now)
+            ], forDocument: collectorRef, merge: true)
+
+            return nil
+        }
+
+        applyHostFeedbackLocally(jobId: jobId, pickedInDaytime: pickedInDaytime, collectorRating: collectorRating)
+    }
+
+    private func applyHostFeedbackLocally(jobId: String, pickedInDaytime: Bool, collectorRating: Int) {
+        if let idx = availableJobs.firstIndex(where: { $0.id == jobId }) {
+            availableJobs[idx].pickedInDaytime = pickedInDaytime
+            availableJobs[idx].collectorRatingByHost = collectorRating
+        }
+        if let idx = myPostedJobs.firstIndex(where: { $0.id == jobId }) {
+            myPostedJobs[idx].pickedInDaytime = pickedInDaytime
+            myPostedJobs[idx].collectorRatingByHost = collectorRating
+        }
+    }
+
+    func submitHostFeedbackInFirestore(
+        postId: String,
+        donorId: String,
+        collectorId: String,
+        rating: Int,
+        pickedUpDuringDay: Bool
+    ) async throws {
+        let feedbackRef = db.collection("pickupFeedback").document("\(postId)_\(donorId)")
+        let collectorRef = db.collection("users").document(collectorId)
+        let now = Date()
+        let didPickupValue = pickedUpDuringDay ? 100.0 : 0.0
+
+        try await db.runTransaction { transaction, _ in
+            let existingFeedback = try transaction.getDocument(feedbackRef)
+            if existingFeedback.exists {
+                transaction.setData([
+                    "rating": rating,
+                    "pickedUpDuringDay": pickedUpDuringDay,
+                    "updatedAt": Timestamp(date: now)
+                ], forDocument: feedbackRef, merge: true)
+                return nil
+            }
+
+            let collectorDoc = try transaction.getDocument(collectorRef)
+            let currentReviewCount = (collectorDoc.data()?["reviewCount"] as? Int)
+                ?? (collectorDoc.data()?["reviewCount"] as? NSNumber)?.intValue
+                ?? 0
+            let currentRating = (collectorDoc.data()?["rating"] as? Double)
+                ?? (collectorDoc.data()?["rating"] as? NSNumber)?.doubleValue
+                ?? 4.8
+            let currentOnTimeRate = (collectorDoc.data()?["onTimeRate"] as? Double)
+                ?? (collectorDoc.data()?["onTimeRate"] as? NSNumber)?.doubleValue
+                ?? 100.0
+
+            let newReviewCount = currentReviewCount + 1
+            let newRating = ((currentRating * Double(currentReviewCount)) + Double(rating)) / Double(max(1, newReviewCount))
+            let newOnTimeRate = ((currentOnTimeRate * Double(currentReviewCount)) + didPickupValue) / Double(max(1, newReviewCount))
+            let newReliability = max(0, min(100, (newOnTimeRate * 0.6) + (newRating * 20 * 0.4)))
+
+            transaction.setData([
+                "postId": postId,
+                "donorId": donorId,
+                "collectorId": collectorId,
+                "rating": rating,
+                "pickedUpDuringDay": pickedUpDuringDay,
+                "createdAt": Timestamp(date: now),
+                "updatedAt": Timestamp(date: now)
+            ], forDocument: feedbackRef, merge: true)
+
+            transaction.setData([
+                "reviewCount": newReviewCount,
+                "rating": newRating,
+                "onTimeRate": newOnTimeRate,
+                "reliabilityScore": newReliability,
+                "updatedAt": Timestamp(date: now)
+            ], forDocument: collectorRef, merge: true)
+
+            return nil
+        }
+    }
+
     func demandMultiplier(for tier: JobTier, bottleCount: Int) -> Double {
         let base: Double
         switch tier {
@@ -831,6 +1061,8 @@ private struct FirestoreJobRecord {
     let materialBreakdown: MaterialBreakdown?
     let bottlePhotoBase64: String?
     let locationPhotoBase64: String?
+    let pickedInDaytime: Bool?
+    let collectorRatingByHost: Int?
 
     init?(_ data: [String: Any], id: String) {
         let bottleValue = (data["bottleCount"] as? Int) ?? (data["bottleCount"] as? NSNumber)?.intValue
@@ -889,6 +1121,8 @@ private struct FirestoreJobRecord {
         }
         let expiresAt = (data["expiresAt"] as? Timestamp)?.dateValue()
         let aiConfidence = (data["aiConfidence"] as? Int) ?? (data["aiConfidence"] as? NSNumber)?.intValue
+        let pickedInDaytime = data["pickedInDaytime"] as? Bool
+        let collectorRatingByHost = (data["collectorRatingByHost"] as? Int) ?? (data["collectorRatingByHost"] as? NSNumber)?.intValue
         let materialBreakdown: MaterialBreakdown? = {
             guard let dict = data["materialBreakdown"] as? [String: Any] else { return nil }
             let plastic = (dict["plastic"] as? Int) ?? (dict["plastic"] as? NSNumber)?.intValue ?? 0
@@ -920,6 +1154,8 @@ private struct FirestoreJobRecord {
         self.materialBreakdown = materialBreakdown
         self.bottlePhotoBase64 = (data["bottlePhotoBase64"] as? String) ?? (data["bottle_photo_base64"] as? String)
         self.locationPhotoBase64 = (data["locationPhotoBase64"] as? String) ?? (data["location_photo_base64"] as? String)
+        self.pickedInDaytime = pickedInDaytime
+        self.collectorRatingByHost = collectorRatingByHost
     }
 
     init?(document: DocumentSnapshot) {
@@ -950,7 +1186,9 @@ private struct FirestoreJobRecord {
         aiConfidence: Int?,
         materialBreakdown: MaterialBreakdown?,
         bottlePhotoBase64: String?,
-        locationPhotoBase64: String?
+        locationPhotoBase64: String?,
+        pickedInDaytime: Bool?,
+        collectorRatingByHost: Int?
     ) {
         self.id = id
         self.donorId = donorId
@@ -975,6 +1213,8 @@ private struct FirestoreJobRecord {
         self.materialBreakdown = materialBreakdown
         self.bottlePhotoBase64 = bottlePhotoBase64
         self.locationPhotoBase64 = locationPhotoBase64
+        self.pickedInDaytime = pickedInDaytime
+        self.collectorRatingByHost = collectorRatingByHost
     }
 
     var job: BottleJob {
@@ -1001,7 +1241,9 @@ private struct FirestoreJobRecord {
             locationPhotoBase64: locationPhotoBase64,
             expiresAt: expiresAt,
             aiConfidence: aiConfidence,
-            materialBreakdown: materialBreakdown
+            materialBreakdown: materialBreakdown,
+            pickedInDaytime: pickedInDaytime,
+            collectorRatingByHost: collectorRatingByHost
         )
     }
 
@@ -1042,7 +1284,9 @@ private struct FirestoreJobRecord {
             "aiConfidence": aiConfidence as Any,
             "materialBreakdown": materialBreakdown.map { ["plastic": $0.plastic, "aluminum": $0.aluminum, "glass": $0.glass] } as Any,
             "bottlePhotoBase64": bottlePhotoBase64 as Any,
-            "locationPhotoBase64": locationPhotoBase64 as Any
+            "locationPhotoBase64": locationPhotoBase64 as Any,
+            "pickedInDaytime": pickedInDaytime as Any,
+            "collectorRatingByHost": collectorRatingByHost as Any
         ]
     }
 }
