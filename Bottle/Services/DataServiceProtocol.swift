@@ -29,6 +29,19 @@ protocol DataServiceProtocol: AnyObject {
         bottlePhotoBase64: String?,
         locationPhotoBase64: String?
     ) async throws
+    func updatePost(
+        _ post: BottleJob,
+        address: String,
+        location: GeoLocation,
+        bottleCount: Int,
+        schedule: String,
+        notes: String,
+        isRecurring: Bool,
+        tier: JobTier,
+        bottlePhotoBase64: String?,
+        locationPhotoBase64: String?
+    ) async throws
+    func deletePost(_ post: BottleJob) async throws
     func acceptJob(jobId: String, collectorId: String) async throws
     func completeJob(job: BottleJob, bottleCount: Int, proofPhotoBase64: String?) async throws
 

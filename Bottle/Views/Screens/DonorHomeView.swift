@@ -6,12 +6,31 @@
 //
 
 import SwiftUI
+import MapKit
 
 struct DonorHomeView: View {
     @EnvironmentObject var dataService: DataService
     @AppStorage("bottlr.firstRunTip.host") private var showHostTip = true
+    @State private var postsMode: HostPostsMode = .list
+    @State private var mapPosition: MapCameraPosition = .region(
+        MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
+            span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
+        )
+    )
     @State private var selectedClaimedPost: BottleJob?
+    @State private var selectedPostForEdit: BottleJob?
     @State private var showClaimFeedbackSheet = false
+    @State private var showEditPostSheet = false
+    @State private var postPendingDelete: BottleJob?
+    @State private var showDeleteConfirmation = false
+    @State private var showActionError = false
+    @State private var actionErrorMessage = ""
+
+    enum HostPostsMode: String, CaseIterable {
+        case list = "List"
+        case map = "Map"
+    }
     
     var body: some View {
         NavigationView {
@@ -58,24 +77,86 @@ struct DonorHomeView: View {
                     .padding(.top, 12)
 
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("ACTIVE POST")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-
-                        if let upcoming = activeHostedPost {
-                            Text(upcoming.address)
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                            Text("\(upcoming.bottleCount) bottles • \(upcoming.availableTime)")
+                        HStack {
+                            Text("YOUR POSTS")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            Text(stageLabel(for: upcoming.status))
-                                .font(.caption2)
-                                .foregroundColor(.brandBlueLight)
-                        } else {
-                            Text("No active pickup yet.")
+                            Spacer()
+                            Text("\(myPosts.count)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Picker("View", selection: $postsMode) {
+                            ForEach(HostPostsMode.allCases, id: \.self) { option in
+                                Text(option.rawValue).tag(option)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        if myPosts.isEmpty {
+                            Text("No posts yet. Create your first collection point.")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
+                                .padding(.top, 4)
+                        } else if postsMode == .map {
+                            Map(position: $mapPosition) {
+                                ForEach(myPosts) { post in
+                                    Marker(post.title, coordinate: post.coordinate)
+                                        .tint(Color.brandGreen)
+                                }
+                            }
+                            .frame(height: 240)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        } else {
+                            VStack(spacing: 10) {
+                                ForEach(myPosts.prefix(8)) { post in
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text(post.address)
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                        Text("\(post.bottleCount) bottles • \(post.availableTime)")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        Text(stageLabel(for: post.status))
+                                            .font(.caption2)
+                                            .foregroundColor(.brandBlueLight)
+                                        if canModifyPost(post) {
+                                            HStack(spacing: 10) {
+                                                Button {
+                                                    selectedPostForEdit = post
+                                                    showEditPostSheet = true
+                                                } label: {
+                                                    Label("Edit", systemImage: "pencil")
+                                                        .font(.caption)
+                                                        .fontWeight(.semibold)
+                                                        .padding(.horizontal, 10)
+                                                        .padding(.vertical, 8)
+                                                        .background(Color.brandBlueLight.opacity(0.18))
+                                                        .foregroundColor(.brandBlueDark)
+                                                        .cornerRadius(8)
+                                                }
+                                                Button(role: .destructive) {
+                                                    postPendingDelete = post
+                                                    showDeleteConfirmation = true
+                                                } label: {
+                                                    Label("Delete", systemImage: "trash")
+                                                        .font(.caption)
+                                                        .fontWeight(.semibold)
+                                                        .padding(.horizontal, 10)
+                                                        .padding(.vertical, 8)
+                                                        .background(Color.red.opacity(0.12))
+                                                        .cornerRadius(8)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(12)
+                                    .background(Color(.secondarySystemBackground))
+                                    .cornerRadius(12)
+                                }
+                            }
                         }
                     }
                     .padding()
@@ -141,11 +222,58 @@ struct DonorHomeView: View {
                         .environmentObject(dataService)
                 }
             }
+            .sheet(isPresented: $showEditPostSheet) {
+                if let selectedPostForEdit {
+                    DonorCreateJobView(existingPost: selectedPostForEdit)
+                        .environmentObject(dataService)
+                }
+            }
+            .confirmationDialog(
+                "Delete this post?",
+                isPresented: $showDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    guard let postPendingDelete else { return }
+                    Task {
+                        do {
+                            try await dataService.deletePost(postPendingDelete)
+                            self.postPendingDelete = nil
+                        } catch {
+                            self.actionErrorMessage = error.localizedDescription
+                            self.showActionError = true
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) {
+                    postPendingDelete = nil
+                }
+            } message: {
+                Text("This removes the collection point from nearby collectors.")
+            }
+            .alert("Couldn't complete action", isPresented: $showActionError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(actionErrorMessage)
+            }
             .onReceive(NotificationCenter.default.publisher(for: AppNotificationService.openCollectionPointNotification)) { notification in
                 guard let postId = notification.userInfo?[AppNotificationService.postIDUserInfoKey] as? String else { return }
                 guard let matched = pendingClaimedPosts.first(where: { $0.id == postId }) else { return }
                 selectedClaimedPost = matched
                 showClaimFeedbackSheet = true
+            }
+            .onAppear {
+                focusMapOnPosts()
+            }
+            .onChange(of: postsMode) { _, mode in
+                if mode == .map {
+                    focusMapOnPosts()
+                }
+            }
+            .onChange(of: myPosts.count) { _, _ in
+                if postsMode == .map {
+                    focusMapOnPosts()
+                }
             }
         }
     }
@@ -154,10 +282,8 @@ struct DonorHomeView: View {
         dataService.myPostedJobs.filter { $0.status == .claimed && $0.collectorRatingByHost == nil }
     }
 
-    private var activeHostedPost: BottleJob? {
-        dataService.myPostedJobs.first {
-            $0.status != .completed && $0.status != .cancelled && $0.status != .expired
-        }
+    private var myPosts: [BottleJob] {
+        dataService.myPostedJobs.sorted { $0.createdAt > $1.createdAt }
     }
 
     private func stageLabel(for status: JobStatus) -> String {
@@ -170,6 +296,20 @@ struct DonorHomeView: View {
         case .expired: return "Stage: expired"
         case .disputed: return "Stage: disputed"
         }
+    }
+
+    private func canModifyPost(_ post: BottleJob) -> Bool {
+        post.claimedBy == nil && (post.status == .available || post.status == .posted)
+    }
+
+    private func focusMapOnPosts() {
+        guard let first = myPosts.first else { return }
+        mapPosition = .region(
+            MKCoordinateRegion(
+                center: first.coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.06, longitudeDelta: 0.06)
+            )
+        )
     }
 }
 

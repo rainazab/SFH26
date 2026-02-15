@@ -79,12 +79,24 @@ struct OnboardingView: View {
                     Spacer(minLength: 10)
                     ZStack {
                         Circle()
-                            .fill(Color.brandBlueLight.opacity(0.28))
-                            .frame(width: 132, height: 132)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.brandBlueLight.opacity(0.34), Color.brandGreen.opacity(0.18)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 146, height: 146)
+                            .shadow(color: Color.brandBlueLight.opacity(0.25), radius: 14, y: 6)
+
+                        Circle()
+                            .fill(Color.white.opacity(0.6))
+                            .frame(width: 122, height: 122)
+
                         Image("logo")
                             .resizable()
                             .scaledToFit()
-                            .frame(width: 110, height: 110)
+                            .frame(width: 96, height: 96)
                     }
                     
                     Text("Choose your role")

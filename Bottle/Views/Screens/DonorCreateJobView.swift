@@ -11,6 +11,7 @@ import UserNotifications
 struct DonorCreateJobView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var dataService: DataService
+    let existingPost: BottleJob?
     
     @State private var address = ""
     @State private var bottleCount = ""
@@ -23,6 +24,11 @@ struct DonorCreateJobView: View {
     @State private var locationQuery = ""
     @State private var locationResults: [MKMapItem] = []
     @State private var isSearchingLocations = false
+    @State private var didLoadDefaultAddress = false
+    @State private var defaultAddressValue: String?
+    @State private var defaultAddressCoordinate: CLLocationCoordinate2D?
+    @State private var saveAsDefaultAddress = false
+    @FocusState private var isLocationFieldFocused: Bool
     
     @State private var isSubmitting = false
     @State private var showError = false
@@ -35,6 +41,19 @@ struct DonorCreateJobView: View {
     private let quickBottleCounts = [25, 50, 100, 200, 350]
     private let quickSchedules = ["Now", "Today", "Tonight", "Tomorrow", "This weekend"]
     private let quickContextNotes = ["Dog on site", "Gate code needed", "Use side entrance", "Call on arrival", "Heavy bags"]
+
+    init(existingPost: BottleJob? = nil) {
+        self.existingPost = existingPost
+        _address = State(initialValue: existingPost?.address ?? "")
+        _bottleCount = State(initialValue: existingPost.map { "\($0.bottleCount)" } ?? "")
+        _schedule = State(initialValue: existingPost?.schedule ?? "Today")
+        _notes = State(initialValue: existingPost?.notes ?? "")
+        _isRecurring = State(initialValue: existingPost?.isRecurring ?? false)
+        _tier = State(initialValue: existingPost?.tier ?? .residential)
+        _coordinate = State(initialValue: existingPost?.coordinate)
+        _bottlePhotoImage = State(initialValue: Self.image(fromBase64: existingPost?.bottlePhotoBase64))
+        _locationPhotoImage = State(initialValue: Self.image(fromBase64: existingPost?.locationPhotoBase64))
+    }
     
     var body: some View {
         NavigationView {
@@ -93,13 +112,80 @@ struct DonorCreateJobView: View {
                 }
                 
                 Section("Location") {
-                    TextField("Search address", text: $locationQuery)
-                        .textInputAutocapitalization(.words)
-                        .autocorrectionDisabled()
-                        .accessibilityLabel("Search pickup address")
-                        .onChange(of: locationQuery) { _, _ in
-                            searchLocations()
+                    if existingPost == nil, let defaultAddressValue {
+                        Button {
+                            applyDefaultAddress()
+                        } label: {
+                            Label("Use saved default address", systemImage: "house.fill")
+                                .font(.subheadline)
                         }
+                        Text(defaultAddressValue)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    if hasConfirmedAddress {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("Address confirmed")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.green)
+                            }
+                            Text(address)
+                                .font(.subheadline)
+                                .foregroundColor(.primary)
+
+                            HStack(spacing: 12) {
+                                Button("Change") {
+                                    startChangingAddress()
+                                }
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.brandBlueDark)
+
+                                Button("Clear") {
+                                    clearSelectedAddress()
+                                }
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            }
+                        }
+
+                        if existingPost == nil {
+                            Toggle("Save this as my default address", isOn: $saveAsDefaultAddress)
+                                .font(.subheadline)
+                        }
+                    }
+
+                    HStack(spacing: 8) {
+                        TextField(hasConfirmedAddress ? "Search for a new address" : "Search address", text: $locationQuery)
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled()
+                            .accessibilityLabel("Search pickup address")
+                            .focused($isLocationFieldFocused)
+                            .onChange(of: locationQuery) { _, newValue in
+                                // Prevent stale coordinate usage when user edits selected address.
+                                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                if hasConfirmedAddress && !trimmed.isEmpty {
+                                    coordinate = nil
+                                    address = ""
+                                }
+                                searchLocations()
+                            }
+
+                        if !locationQuery.isEmpty {
+                            Button {
+                                clearLocationInput()
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                            .accessibilityLabel("Clear address search")
+                        }
+                    }
 
                     if isSearchingLocations {
                         HStack(spacing: 8) {
@@ -108,6 +194,12 @@ struct DonorCreateJobView: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
+                    }
+
+                    if !locationQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("Select one suggestion below to confirm this address.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
                     }
 
                     if !locationResults.isEmpty {
@@ -124,17 +216,6 @@ struct DonorCreateJobView: View {
                                 }
                             }
                             .accessibilityLabel("Use address \(item.placemark.title ?? item.name ?? "Location")")
-                        }
-                    }
-
-                    if !address.isEmpty, let coordinate {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Label(address, systemImage: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                                .font(.caption)
-                            Text("Lat \(String(format: "%.4f", coordinate.latitude)), Lon \(String(format: "%.4f", coordinate.longitude))")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
                         }
                     }
                 }
@@ -214,13 +295,13 @@ struct DonorCreateJobView: View {
                             .font(.caption)
                             .foregroundColor(.red)
                     }
-                    Button(action: create) {
+                    Button(action: submitPost) {
                         HStack {
                             if isSubmitting {
                                 ProgressView()
                             } else {
                                 Image(systemName: "paperplane.fill")
-                                Text("Post")
+                                Text(existingPost == nil ? "Post" : "Save Changes")
                                     .fontWeight(.semibold)
                             }
                         }
@@ -228,7 +309,7 @@ struct DonorCreateJobView: View {
                     .disabled(!canSubmit || isSubmitting)
                 }
             }
-            .navigationTitle("Post Info")
+            .navigationTitle(existingPost == nil ? "Post Info" : "Edit Post")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -243,7 +324,7 @@ struct DonorCreateJobView: View {
             .alert("Listing posted", isPresented: $showPostedSuccess) {
                 Button("Done") { dismiss() }
             } message: {
-                Text("Your collection point request is now visible to nearby collectors.")
+                Text(existingPost == nil ? "Your collection point request is now visible to nearby collectors." : "Your collection point has been updated.")
             }
             .fullScreenCover(isPresented: $showBottleCamera) {
                 CameraImagePicker(image: $bottlePhotoImage)
@@ -253,11 +334,18 @@ struct DonorCreateJobView: View {
                 CameraImagePicker(image: $locationPhotoImage)
                     .ignoresSafeArea()
             }
+            .onAppear {
+                loadDefaultAddressIfNeeded()
+            }
         }
     }
     
     private var canSubmit: Bool {
         (Int(bottleCount) ?? 0) > 0 && coordinate != nil && !address.isEmpty
+    }
+
+    private var hasConfirmedAddress: Bool {
+        coordinate != nil && !address.isEmpty
     }
 
     private var missingRequirementsText: String {
@@ -300,11 +388,30 @@ struct DonorCreateJobView: View {
     private func applyLocation(_ item: MKMapItem) {
         coordinate = item.placemark.coordinate
         address = item.placemark.title ?? item.name ?? ""
-        locationQuery = address
+        locationQuery = ""
+        locationResults = []
+        isLocationFieldFocused = false
+    }
+
+    private func startChangingAddress() {
+        locationQuery = ""
+        locationResults = []
+        isLocationFieldFocused = true
+    }
+
+    private func clearSelectedAddress() {
+        address = ""
+        coordinate = nil
         locationResults = []
     }
+
+    private func clearLocationInput() {
+        locationQuery = ""
+        clearSelectedAddress()
+        isLocationFieldFocused = true
+    }
     
-    private func create() {
+    private func submitPost() {
         guard let count = Int(bottleCount), let coordinate else {
             errorMessage = "Please enter valid listing details."
             showError = true
@@ -313,21 +420,41 @@ struct DonorCreateJobView: View {
         isSubmitting = true
         Task {
             do {
-                try await dataService.createJob(
-                    title: autoPostTitle(for: count),
-                    address: address,
-                    location: GeoLocation(coordinate: coordinate),
-                    bottleCount: count,
-                    schedule: schedule,
-                    notes: notes,
-                    isRecurring: isRecurring,
-                    tier: tier,
-                    availableTime: schedule,
-                    bottlePhotoBase64: bottlePhotoImage?.jpegData(compressionQuality: 0.6)?.base64EncodedString(),
-                    locationPhotoBase64: locationPhotoImage?.jpegData(compressionQuality: 0.6)?.base64EncodedString()
-                )
+                if let existingPost {
+                    try await dataService.updatePost(
+                        existingPost,
+                        address: address,
+                        location: GeoLocation(coordinate: coordinate),
+                        bottleCount: count,
+                        schedule: schedule,
+                        notes: notes,
+                        isRecurring: isRecurring,
+                        tier: tier,
+                        bottlePhotoBase64: bottlePhotoImage?.jpegData(compressionQuality: 0.6)?.base64EncodedString(),
+                        locationPhotoBase64: locationPhotoImage?.jpegData(compressionQuality: 0.6)?.base64EncodedString()
+                    )
+                } else {
+                    try await dataService.createJob(
+                        title: autoPostTitle(for: count),
+                        address: address,
+                        location: GeoLocation(coordinate: coordinate),
+                        bottleCount: count,
+                        schedule: schedule,
+                        notes: notes,
+                        isRecurring: isRecurring,
+                        tier: tier,
+                        availableTime: schedule,
+                        bottlePhotoBase64: bottlePhotoImage?.jpegData(compressionQuality: 0.6)?.base64EncodedString(),
+                        locationPhotoBase64: locationPhotoImage?.jpegData(compressionQuality: 0.6)?.base64EncodedString()
+                    )
+                }
                 isSubmitting = false
-                sendPostNotification(for: count)
+                if existingPost == nil {
+                    if saveAsDefaultAddress {
+                        persistDefaultAddress(address: address, coordinate: coordinate)
+                    }
+                    sendPostNotification(for: count)
+                }
                 showPostedSuccess = true
             } catch {
                 isSubmitting = false
@@ -367,6 +494,72 @@ struct DonorCreateJobView: View {
             )
             center.add(request)
         }
+    }
+
+    private static func image(fromBase64 value: String?) -> UIImage? {
+        guard
+            let value,
+            let data = Data(base64Encoded: value),
+            let image = UIImage(data: data)
+        else {
+            return nil
+        }
+        return image
+    }
+
+    private func loadDefaultAddressIfNeeded() {
+        guard existingPost == nil, !didLoadDefaultAddress else { return }
+        didLoadDefaultAddress = true
+
+        let defaults = UserDefaults.standard
+        let keyPrefix = defaultAddressKeyPrefix()
+        guard
+            let savedAddress = defaults.string(forKey: "\(keyPrefix).address"),
+            !savedAddress.isEmpty
+        else {
+            defaultAddressValue = nil
+            defaultAddressCoordinate = nil
+            return
+        }
+
+        defaultAddressValue = savedAddress
+        let hasLat = defaults.object(forKey: "\(keyPrefix).lat") != nil
+        let hasLon = defaults.object(forKey: "\(keyPrefix).lon") != nil
+        if hasLat, hasLon {
+            let lat = defaults.double(forKey: "\(keyPrefix).lat")
+            let lon = defaults.double(forKey: "\(keyPrefix).lon")
+            defaultAddressCoordinate = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        }
+
+        if !hasConfirmedAddress, let defaultAddressCoordinate {
+            address = savedAddress
+            coordinate = defaultAddressCoordinate
+            saveAsDefaultAddress = true
+        }
+    }
+
+    private func applyDefaultAddress() {
+        guard let defaultAddressValue, let defaultAddressCoordinate else { return }
+        address = defaultAddressValue
+        coordinate = defaultAddressCoordinate
+        locationQuery = ""
+        locationResults = []
+        saveAsDefaultAddress = true
+    }
+
+    private func persistDefaultAddress(address: String, coordinate: CLLocationCoordinate2D) {
+        let defaults = UserDefaults.standard
+        let keyPrefix = defaultAddressKeyPrefix()
+        defaults.set(address, forKey: "\(keyPrefix).address")
+        defaults.set(coordinate.latitude, forKey: "\(keyPrefix).lat")
+        defaults.set(coordinate.longitude, forKey: "\(keyPrefix).lon")
+        defaultAddressValue = address
+        defaultAddressCoordinate = coordinate
+    }
+
+    private func defaultAddressKeyPrefix() -> String {
+        let userID = dataService.currentUser?.id ?? "guest"
+        return "bottlr.host.defaultAddress.\(userID)"
     }
 }
 

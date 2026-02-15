@@ -509,6 +509,107 @@ final class DataService: ObservableObject, DataServiceProtocol {
         #endif
     }
 
+    func updatePost(
+        _ post: BottleJob,
+        address: String,
+        location: GeoLocation,
+        bottleCount: Int,
+        schedule: String,
+        notes: String,
+        isRecurring: Bool,
+        tier: JobTier,
+        bottlePhotoBase64: String?,
+        locationPhotoBase64: String?
+    ) async throws {
+        guard let user = currentUser else { throw AppError.unauthorized }
+        guard user.type == .donor else { throw AppError.validation("Only hosts can edit posts.") }
+        guard post.donorId == user.id else { throw AppError.validation("You can only edit your own post.") }
+        guard canModifyPost(post) else {
+            throw AppError.validation("This post can no longer be edited after being claimed.")
+        }
+
+        let normalizedSchedule = schedule.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedSchedule = normalizedSchedule.isEmpty ? "Available now" : normalizedSchedule
+        let updatedTitle = "\(user.name.isEmpty ? "Community" : user.name) • \(bottleCount) bottles"
+        let resolvedBottlePhoto = bottlePhotoBase64 ?? post.bottlePhotoBase64
+        let resolvedLocationPhoto = locationPhotoBase64 ?? post.locationPhotoBase64
+
+        #if canImport(FirebaseFirestore)
+        if isFirestoreEnabled {
+            try await updatePostInFirestore(
+                postID: post.id,
+                title: updatedTitle,
+                address: address,
+                location: location,
+                bottleCount: bottleCount,
+                schedule: resolvedSchedule,
+                notes: notes,
+                isRecurring: isRecurring,
+                tier: tier,
+                bottlePhotoBase64: resolvedBottlePhoto,
+                locationPhotoBase64: resolvedLocationPhoto
+            )
+        } else {
+            try await appState.updateDonorJob(
+                postID: post.id,
+                title: updatedTitle,
+                address: address,
+                coordinate: location.coordinate,
+                bottleCount: bottleCount,
+                schedule: resolvedSchedule,
+                notes: notes,
+                isRecurring: isRecurring,
+                tier: tier,
+                bottlePhotoBase64: resolvedBottlePhoto,
+                locationPhotoBase64: resolvedLocationPhoto
+            )
+        }
+        #else
+        try await appState.updateDonorJob(
+            postID: post.id,
+            title: updatedTitle,
+            address: address,
+            coordinate: location.coordinate,
+            bottleCount: bottleCount,
+            schedule: resolvedSchedule,
+            notes: notes,
+            isRecurring: isRecurring,
+            tier: tier,
+            bottlePhotoBase64: resolvedBottlePhoto,
+            locationPhotoBase64: resolvedLocationPhoto
+        )
+        #endif
+    }
+
+    func deletePost(_ post: BottleJob) async throws {
+        guard let user = currentUser else { throw AppError.unauthorized }
+        guard user.type == .donor else { throw AppError.validation("Only hosts can delete posts.") }
+        guard post.donorId == user.id else { throw AppError.validation("You can only delete your own post.") }
+        guard canModifyPost(post) else {
+            throw AppError.validation("This post can no longer be deleted after being claimed.")
+        }
+
+        #if canImport(FirebaseFirestore)
+        if isFirestoreEnabled {
+            try await db.collection("jobs").document(post.id).delete()
+        } else {
+            try await appState.deleteDonorJob(postID: post.id)
+        }
+        #else
+        try await appState.deleteDonorJob(postID: post.id)
+        #endif
+    }
+
+    private func canModifyPost(_ post: BottleJob) -> Bool {
+        if post.claimedBy != nil { return false }
+        switch post.status {
+        case .available, .posted, .expired, .cancelled:
+            return true
+        case .matched, .claimed, .inProgress, .in_progress, .arrived, .completed, .disputed:
+            return false
+        }
+    }
+
     func hasSubmittedHostFeedback(for postId: String) -> Bool {
         hostFeedbackSubmittedPostIDs.contains(postId)
     }
@@ -929,6 +1030,51 @@ private extension DataService {
             collectorRatingByHost: nil
         )
         try await db.collection("jobs").document(id).setData(payload.dictionary)
+    }
+
+    private func updatePostInFirestore(
+        postID: String,
+        title: String,
+        address: String,
+        location: GeoLocation,
+        bottleCount: Int,
+        schedule: String,
+        notes: String,
+        isRecurring: Bool,
+        tier: JobTier,
+        bottlePhotoBase64: String?,
+        locationPhotoBase64: String?
+    ) async throws {
+        let ref = db.collection("jobs").document(postID)
+        let snap = try await ref.getDocument()
+        guard let record = FirestoreJobRecord(document: snap) else {
+            throw AppError.notFound
+        }
+        guard canModifyPost(record.job) else {
+            throw AppError.validation("This post can no longer be edited.")
+        }
+
+        let demand = demandMultiplier(for: tier, bottleCount: bottleCount)
+        let payout = Double(bottleCount) * 0.10
+        try await ref.setData([
+            "title": title,
+            "address": address,
+            "latitude": location.latitude,
+            "longitude": location.longitude,
+            "location": GeoPoint(latitude: location.latitude, longitude: location.longitude),
+            "bottleCount": bottleCount,
+            "payout": payout,
+            "demandMultiplier": demand,
+            "estimatedValue": payout * max(demand, 1.0),
+            "tier": tier.rawValue,
+            "schedule": schedule,
+            "availableTime": schedule,
+            "notes": notes,
+            "isRecurring": isRecurring,
+            "bottlePhotoBase64": bottlePhotoBase64 as Any,
+            "locationPhotoBase64": locationPhotoBase64 as Any,
+            "updatedAt": FieldValue.serverTimestamp()
+        ], merge: true)
     }
 
     func completeJobInFirestore(

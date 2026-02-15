@@ -234,6 +234,78 @@ final class MockDataService: ObservableObject {
         updateJobDistances()
         persistState()
     }
+
+    func updateDonorJob(
+        postID: String,
+        title: String,
+        address: String,
+        coordinate: CLLocationCoordinate2D,
+        bottleCount: Int,
+        schedule: String,
+        notes: String,
+        isRecurring: Bool,
+        tier: JobTier,
+        bottlePhotoBase64: String?,
+        locationPhotoBase64: String?
+    ) async throws {
+        guard currentUser.type == .donor else {
+            throw AppError.validation("Only donors can edit posts.")
+        }
+        guard let idx = availableJobs.firstIndex(where: { $0.id == postID && $0.donorId == currentUser.id }) else {
+            throw AppError.notFound
+        }
+        let updated = availableJobs[idx]
+        guard updated.claimedBy == nil && (updated.status == .available || updated.status == .posted) else {
+            throw AppError.validation("This post can no longer be edited.")
+        }
+        let replacement = BottleJob(
+            id: updated.id,
+            donorId: updated.donorId,
+            title: title,
+            location: GeoLocation(coordinate: coordinate),
+            address: address,
+            bottleCount: bottleCount,
+            payout: Double(bottleCount) * 0.1,
+            demandMultiplier: updated.demandMultiplier,
+            tier: tier,
+            status: updated.status,
+            schedule: schedule,
+            notes: notes,
+            donorRating: updated.donorRating,
+            isRecurring: isRecurring,
+            availableTime: schedule,
+            claimedBy: updated.claimedBy,
+            createdAt: updated.createdAt,
+            distance: updated.distance,
+            bottlePhotoBase64: bottlePhotoBase64,
+            locationPhotoBase64: locationPhotoBase64,
+            expiresAt: updated.expiresAt,
+            aiConfidence: updated.aiConfidence,
+            materialBreakdown: updated.materialBreakdown,
+            pickedInDaytime: updated.pickedInDaytime,
+            collectorRatingByHost: updated.collectorRatingByHost
+        )
+
+        availableJobs[idx] = replacement
+        updateJobDistances()
+        persistState()
+    }
+
+    func deleteDonorJob(postID: String) async throws {
+        guard currentUser.type == .donor else {
+            throw AppError.validation("Only donors can delete posts.")
+        }
+        guard let idx = availableJobs.firstIndex(where: { $0.id == postID && $0.donorId == currentUser.id }) else {
+            throw AppError.notFound
+        }
+        let post = availableJobs[idx]
+        guard post.claimedBy == nil && (post.status == .available || post.status == .posted) else {
+            throw AppError.validation("This post can no longer be deleted.")
+        }
+        availableJobs.remove(at: idx)
+        updateJobDistances()
+        persistState()
+    }
     
     // MARK: - Location
     

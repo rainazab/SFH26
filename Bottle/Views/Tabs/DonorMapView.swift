@@ -22,7 +22,7 @@ struct DonorMapView: View {
         ZStack(alignment: .top) {
             Map(position: $position) {
                 UserAnnotation()
-                ForEach(dataService.availableJobs) { post in
+                ForEach(dataService.myPostedJobs) { post in
                     Marker(post.title, coordinate: post.coordinate)
                         .tint(Color.brandGreen)
                 }
@@ -31,9 +31,9 @@ struct DonorMapView: View {
 
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Live Posts Map")
+                    Text("View All Posts")
                         .font(.headline)
-                    Text("\(dataService.availableJobs.count) active posts nearby")
+                    Text("\(dataService.myPostedJobs.count) posts you created")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
