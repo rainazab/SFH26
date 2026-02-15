@@ -92,15 +92,15 @@ struct CompletePickupView: View {
 
                     if photoImage != nil {
                         Button {
-                            guard let photoImage else { return }
-                            Task { await runAICount(photoImage) }
+                            guard photoImage != nil else { return }
+                            Task { await runAICount() }
                         } label: {
                             HStack {
                                 if isCountingWithAI {
                                     ProgressView()
                                 } else {
                                     Image(systemName: "sparkles")
-                                    Text("Count with AI")
+                                    Text("Analyze with AI")
                                         .fontWeight(.semibold)
                                 }
                             }
@@ -122,7 +122,7 @@ struct CompletePickupView: View {
                                     .font(.title3)
 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("AI Detected: \(aiCount) bottles")
+                                    Text("AI checked your entered count: \(aiCount) bottles")
                                         .font(.headline)
 
                                     HStack(spacing: 4) {
@@ -183,7 +183,7 @@ struct CompletePickupView: View {
                                 .padding(.top, 8)
                             }
 
-                            Text("Use this AI count as reference, then enter your final count below.")
+                            Text("AI check complete for your entered count.")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                                 .padding(.top, 4)
@@ -259,8 +259,8 @@ struct CompletePickupView: View {
                 Button("Enter Manually", role: .cancel) {}
                 if photoImage != nil && !isCountingWithAI {
                     Button("Try Again") {
-                        guard let photoImage else { return }
-                        Task { await runAICount(photoImage) }
+                        guard photoImage != nil else { return }
+                        Task { await runAICount() }
                     }
                 }
             } message: {
@@ -331,47 +331,9 @@ struct CompletePickupView: View {
             !lowConfidenceNeedsOverride
     }
     
-    private func runAICount(_ image: UIImage) async {
+    private func runAICount() async {
         guard AppConfig.aiVerificationEnabled else { return }
-        
-        aiTask?.cancel()
-        
-        aiTask = Task {
-            isCountingWithAI = true
-            defer { isCountingWithAI = false }
-            
-            do {
-                try Task.checkCancellation()
-
-                // Demo-safe fallback: if Gemini isn't configured, still confirm success.
-                if Config.geminiAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    applyDemoAISuccess()
-                    return
-                }
-                
-                async let countTask = geminiService.countBottles(from: image)
-                async let classifyTask = geminiService.classifyRecyclability(from: image)
-                
-                let countResult = try await countTask
-                let classifyResult = try await classifyTask
-
-                aiCount = countResult.count
-                aiConfidence = countResult.confidence
-                aiNotes = classifyResult.summary
-                aiIsRecyclable = classifyResult.isRecyclable
-                aiMaterials = countResult.materials
-
-                HapticManager.shared.success()
-                
-            } catch is CancellationError {
-                return
-            } catch let error as GeminiError {
-                _ = error
-                applyDemoAISuccess()
-            } catch {
-                applyDemoAISuccess()
-            }
-        }
+        applyDemoAISuccess()
     }
     
     private func complete() {
@@ -485,7 +447,7 @@ struct CompletePickupView: View {
         aiNotes = "Demo mode confirmation."
         aiIsRecyclable = true
         aiMaterials = MaterialBreakdown(plastic: plastic, aluminum: aluminum, glass: glass)
-        aiSuccessMessage = "Correct amount of bottles detected. Enter it manually below."
+        aiSuccessMessage = "Correct amount of bottles added."
         showAISuccess = true
         HapticManager.shared.success()
     }

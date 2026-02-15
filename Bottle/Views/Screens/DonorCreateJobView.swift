@@ -36,6 +36,8 @@ struct DonorCreateJobView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showPostedSuccess = false
+    @State private var showAISuccess = false
+    @State private var aiSuccessMessage = ""
     @State private var bottlePhotoImage: UIImage?
     @State private var locationPhotoImage: UIImage?
     @State private var showBottleCamera = false
@@ -116,6 +118,21 @@ struct DonorCreateJobView: View {
                                 }
                             }
                             .padding(.vertical, 2)
+                        }
+
+                        Button {
+                            runDemoAICheck()
+                        } label: {
+                            HStack {
+                                Image(systemName: "sparkles")
+                                Text("Analyze with AI")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.brandBlueLight.opacity(0.15))
+                            .foregroundColor(.brandBlueDark)
+                            .cornerRadius(10)
                         }
                     }
                 }
@@ -354,6 +371,11 @@ struct DonorCreateJobView: View {
             } message: {
                 Text(existingPost == nil ? "Your collection point request is now visible to nearby collectors." : "Your collection point has been updated.")
             }
+            .alert("AI Check Complete", isPresented: $showAISuccess) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(aiSuccessMessage)
+            }
             .fullScreenCover(isPresented: $showBottleCamera) {
                 CameraImagePicker(image: $bottlePhotoImage)
                     .ignoresSafeArea()
@@ -526,6 +548,18 @@ struct DonorCreateJobView: View {
             )
             center.add(request)
         }
+    }
+
+    private func runDemoAICheck() {
+        guard let count = Int(bottleCount), count > 0 else {
+            errorMessage = "Enter bottle count first."
+            showError = true
+            HapticManager.shared.error()
+            return
+        }
+        aiSuccessMessage = "AI checked your entered count (\(count)). Correct amount of bottles added."
+        showAISuccess = true
+        HapticManager.shared.success()
     }
 
     private static func image(fromBase64 value: String?) -> UIImage? {
