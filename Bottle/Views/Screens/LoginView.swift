@@ -36,7 +36,7 @@ struct LoginView: View {
             GeometryReader { geo in
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 24) {
-                        Spacer(minLength: 40)
+                        Spacer(minLength: max(40, geo.safeAreaInsets.top + 20))
                         
                         // Hero
                         VStack(spacing: 16) {
@@ -46,12 +46,28 @@ struct LoginView: View {
                                 .frame(width: 140, height: 140)
                             
                             Text("BOTTLE")
-                                .font(.system(size: 48, weight: .bold))
+                                .font(.system(size: 40, weight: .bold))
                                 .foregroundColor(.white)
                             
                             Text("Turn bottles into cash")
                                 .font(.title3)
-                                .foregroundColor(.white.opacity(0.9))
+                                .foregroundColor(.white.opacity(0.95))
+                        }
+                        .padding(.bottom, 8)
+
+                        if let errorMessage = authService.errorMessage, showingError {
+                            HStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.caption)
+                                Text(errorMessage)
+                                    .font(.caption)
+                                    .multilineTextAlignment(.leading)
+                            }
+                            .foregroundColor(.white)
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.red.opacity(0.3))
+                            .cornerRadius(10)
                         }
                         
                         // Login form
@@ -99,11 +115,16 @@ struct LoginView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color.white.opacity(0.2))
+                                .background(Color.white.opacity((isLoading || email.isEmpty || password.isEmpty) ? 0.1 : 0.25))
                                 .foregroundColor(.white)
                                 .cornerRadius(15)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 15)
+                                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                )
                             }
                             .disabled(isLoading || email.isEmpty || password.isEmpty)
+                            .opacity((isLoading || email.isEmpty || password.isEmpty) ? 0.5 : 1.0)
                             .padding(.top, 4)
                             
                             HStack {
@@ -147,18 +168,29 @@ struct LoginView: View {
                     }
                     .frame(minHeight: geo.size.height)
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 20)
+                    .padding(.bottom, max(20, geo.safeAreaInsets.bottom))
                     .contentShape(Rectangle())
                     .onTapGesture {
                         focusedField = nil
                     }
                 }
             }
+            
+            if isLoading {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(true)
+            }
         }
-        .alert("Error", isPresented: $showingError) {
-            Button("OK") { }
-        } message: {
-            Text(authService.errorMessage ?? "An error occurred")
+        .onChange(of: authService.errorMessage) { _, newValue in
+            if newValue != nil {
+                showingError = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                    withAnimation {
+                        showingError = false
+                    }
+                }
+            }
         }
         .sheet(isPresented: $showingSignUp) {
             SignUpView()
@@ -172,6 +204,7 @@ struct LoginView: View {
     
     private func handleLogin() {
         isLoading = true
+        focusedField = nil
         
         Task {
             do {
@@ -185,6 +218,7 @@ struct LoginView: View {
     
     private func handleGoogleSignIn() {
         isLoading = true
+        focusedField = nil
         
         Task {
             do {
@@ -512,9 +546,13 @@ struct CustomTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .padding()
-            .background(Color.white.opacity(0.2))
+            .background(Color.white.opacity(0.25))
             .foregroundColor(.white)
             .cornerRadius(10)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.white.opacity(0.4), lineWidth: 1)
+            )
             .accentColor(.white)
     }
 }
