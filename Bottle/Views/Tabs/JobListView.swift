@@ -45,7 +45,7 @@ struct JobListView: View {
                 // Stats Header
                 HStack(spacing: 20) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Available Jobs")
+                        Text("Active Impact Opportunities")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Text("\(filteredJobs.count)")
@@ -56,13 +56,13 @@ struct JobListView: View {
                     Spacer()
                     
                     VStack(alignment: .trailing, spacing: 4) {
-                        Text("Est. Value")
+                        Text("Impact Potential")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        Text("$\(Int(filteredJobs.reduce(0) { $0 + $1.estimatedValue }))")
+                        Text("\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: filteredJobs.reduce(0) { $0 + $1.bottleCount }))) kg CO₂")
                             .font(.title2)
                             .fontWeight(.bold)
-                            .foregroundColor(Color.brandGreen)
+                            .foregroundColor(Color.brandBlueLight)
                     }
                 }
                 .padding()
@@ -225,13 +225,16 @@ struct JobCard: View {
                 
                 Spacer()
                 
-                // Estimated redemption value
+                // Impact snapshot
                 VStack(spacing: 4) {
-                    Text("$\(Int(job.estimatedValue))")
-                        .font(.title2)
+                    Text("\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: job.bottleCount)))kg")
+                        .font(.headline)
                         .fontWeight(.bold)
-                        .foregroundColor(Color.brandGreen)
-                    Text("est. value")
+                        .foregroundColor(Color.brandBlueLight)
+                    Text("CO₂ impact")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text("$\(Int(job.estimatedValue)) est.")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                     if job.demandMultiplier > 1.0 {

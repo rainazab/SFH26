@@ -42,13 +42,13 @@ struct CompletePickupView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(job.title).font(.headline)
                         Text(job.address).font(.caption).foregroundColor(.secondary)
-                        Text("Estimated redemption value: $\(String(format: "%.2f", job.estimatedValue))")
+                        Text("Impact potential: \(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: job.bottleCount))) kg CO₂ saved")
                             .font(.subheadline)
-                            .foregroundColor(.brandGreen)
-                        Text("Collector payout after \(Int(dataService.platformFeePercentage * 100))% platform fee: $\(String(format: "%.2f", job.estimatedValue * (1 - dataService.platformFeePercentage)))")
-                            .font(.caption2)
                             .foregroundColor(.brandBlueLight)
-                        Text("Value is redeemed at local recycling centers, not paid through bottlr.")
+                        Text("Estimated payout after \(Int(dataService.platformFeePercentage * 100))% fee: $\(String(format: "%.2f", job.estimatedValue * (1 - dataService.platformFeePercentage)))")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text("Every verified pickup improves neighborhood recycling outcomes.")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
@@ -92,7 +92,7 @@ struct CompletePickupView: View {
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                             if let aiEstimatedCRV {
-                                Text("AI est. CRV value: $\(String(format: "%.2f", aiEstimatedCRV))")
+                                Text("AI impact estimate aligns with ~\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: aiCount))) kg CO₂")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -145,7 +145,7 @@ struct CompletePickupView: View {
                                 ProgressView().progressViewStyle(.circular)
                             } else {
                                 Image(systemName: "checkmark.circle.fill")
-                                Text("Verify Pickup")
+                                Text("Verify Impact")
                                     .fontWeight(.semibold)
                             }
                         }
@@ -191,13 +191,13 @@ struct CompletePickupView: View {
         .overlay(alignment: .center) {
             if showImpactBurst {
                 VStack(spacing: 10) {
-                    Text("+$\(String(format: "%.2f", job.estimatedValue))")
+                    Text("+\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: Int(bottleCount) ?? job.bottleCount))) kg CO₂")
                         .font(.title)
                         .fontWeight(.bold)
-                        .foregroundColor(.brandGreen)
-                    Text("+\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: Int(bottleCount) ?? job.bottleCount))) kg CO₂")
-                        .font(.headline)
                         .foregroundColor(.brandBlueLight)
+                    Text("+$\(String(format: "%.2f", job.estimatedValue)) est.")
+                        .font(.headline)
+                        .foregroundColor(.brandGreen)
                 }
                 .padding(18)
                 .background(.ultraThinMaterial)

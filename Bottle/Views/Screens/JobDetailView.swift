@@ -60,21 +60,21 @@ struct JobDetailView: View {
                         
                         Divider()
                         
-                        // Estimated value & bottles
+                        // Impact potential
                         HStack(spacing: 30) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("EST. VALUE")
+                                Text("CO₂ IMPACT")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                Text("$\(String(format: "%.0f", job.estimatedValue))")
+                                Text("\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: job.bottleCount))) kg")
                                     .font(.system(size: 36, weight: .bold))
-                                    .foregroundColor(Color.brandGreen)
+                                    .foregroundColor(Color.brandBlueLight)
                                 if job.demandMultiplier > 1.0 {
-                                    Text("Includes \(Int((job.demandMultiplier - 1.0) * 100))% demand bonus")
+                                    Text("High-priority pickup (+\(Int((job.demandMultiplier - 1.0) * 100))% demand)")
                                         .font(.caption2)
-                                        .foregroundColor(.brandBlueLight)
+                                        .foregroundColor(.brandGreen)
                                 }
-                                Text("Collector payout: $\(String(format: "%.0f", job.estimatedValue * (1 - dataService.platformFeePercentage)))")
+                                Text("$\(String(format: "%.0f", job.estimatedValue * (1 - dataService.platformFeePercentage))) payout after fee")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
@@ -221,7 +221,7 @@ struct JobDetailView: View {
                                     } else {
                                         Image(systemName: "checkmark.circle.fill")
                                     }
-                                    Text(isClaiming ? "Claiming..." : "Claim This Job")
+                                    Text(isClaiming ? "Claiming..." : "Claim Impact Job")
                                         .fontWeight(.semibold)
                                 }
                                 .frame(maxWidth: .infinity)
@@ -285,7 +285,7 @@ struct JobDetailView: View {
                 dismiss()
             }
         } message: {
-            Text("Pickup claimed. Coordinate handoff and verify in the Activity tab.")
+            Text("Impact pickup claimed. Coordinate handoff and verify in the Activity tab.")
         }
         .alert("Unable to Claim", isPresented: $showingError) {
             Button("OK") { }

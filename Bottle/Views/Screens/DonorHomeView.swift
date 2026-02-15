@@ -141,12 +141,12 @@ struct DonorHomeView: View {
                         
                         HStack(spacing: 20) {
                             ImpactStat(icon: "cylinder.fill", value: "\(dataService.impactStats.totalBottles)", label: "bottles donated", color: .brandGreen)
-                            ImpactStat(icon: "dollarsign.circle.fill", value: "$\(Int(dataService.impactStats.totalEarnings))", label: "est. redemption value", color: Color(hex: "FF9800"))
+                            ImpactStat(icon: "leaf.fill", value: "\(String(format: "%.1f", dataService.impactStats.co2Saved))kg", label: "CO₂ saved", color: .brandGreenDark)
                         }
                         
                         HStack(spacing: 20) {
-                            ImpactStat(icon: "leaf.fill", value: "23kg", label: "CO₂ saved", color: .brandGreenDark)
-                            ImpactStat(icon: "chart.bar.fill", value: "Top 5%", label: "in Oakland", color: .brandBlueLight)
+                            ImpactStat(icon: "chart.bar.fill", value: "Top 5%", label: "community impact", color: .brandBlueLight)
+                            ImpactStat(icon: "person.3.fill", value: "\(dataService.platformStats.totalActiveUsers)", label: "active users", color: .tierCommercial)
                         }
                         
                         Divider()

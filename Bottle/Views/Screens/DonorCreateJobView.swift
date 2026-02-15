@@ -135,7 +135,7 @@ struct DonorCreateJobView: View {
                         .lineLimit(3...5)
                 }
 
-                Section("AI Estimate (Optional)") {
+                Section("AI Impact Estimate (Optional)") {
                     PhotosPicker(selection: $selectedBottlePhoto, matching: .images) {
                         Label("Add bottles photo", systemImage: "camera.fill")
                     }
@@ -190,7 +190,7 @@ struct DonorCreateJobView: View {
                     .disabled(!canSubmit || isSubmitting)
                 }
             }
-            .navigationTitle("New Listing")
+            .navigationTitle("Post Impact")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -205,7 +205,7 @@ struct DonorCreateJobView: View {
             .alert("Listing posted", isPresented: $showPostedSuccess) {
                 Button("Done") { dismiss() }
             } message: {
-                Text("Your pickup is now visible to nearby collectors.")
+                Text("Your impact request is now visible to nearby collectors.")
             }
             .sheet(isPresented: $showLocationSearchSheet) {
                 LocationSearchView(selectedLocation: $selectedLocationResult)
@@ -300,9 +300,10 @@ struct DonorCreateJobView: View {
             } else {
                 materialsText = ""
             }
-            aiSuggestion = "Gemini confidence \(countResult.confidence)%\(materialsText) • \(recycleResult.summary) • CRV likely: \(recycleResult.isRecyclable ? "Yes" : "No") • est. value: $\(String(format: "%.2f", recycleResult.estimatedValue))."
+            let estimatedCo2 = ClimateImpactCalculator.co2Saved(bottles: countResult.count)
+            aiSuggestion = "Gemini confidence \(countResult.confidence)%\(materialsText) • \(recycleResult.summary) • estimated climate impact: \(String(format: "%.1f", estimatedCo2)) kg CO₂ diverted."
         } catch {
-            aiSuggestion = "Gemini estimate unavailable. You can still post manually."
+            aiSuggestion = "Gemini estimate unavailable. You can still post and create impact manually."
         }
     }
 }

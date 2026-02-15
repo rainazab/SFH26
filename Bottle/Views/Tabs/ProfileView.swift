@@ -113,8 +113,8 @@ struct ProfileView: View {
                         // Quick Stats
                         HStack(spacing: 20) {
                             ProfileStatPill(value: "\(profile.totalBottles)", label: "Bottles")
-                            ProfileStatPill(value: "$\(Int(profile.totalEarnings))", label: "Earned")
-                            ProfileStatPill(value: "\(profile.badges.count)", label: "Badges")
+                            ProfileStatPill(value: "\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: profile.totalBottles)))kg", label: "CO₂ Saved")
+                            ProfileStatPill(value: "\(profile.badges.count)", label: "Impact Badges")
                         }
                     }
                     .padding()
@@ -142,12 +142,12 @@ struct ProfileView: View {
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(event.title)
                                             .font(.subheadline)
-                                        if let amount = event.amount {
-                                            Text("+$\(String(format: "%.2f", amount))")
+                                        if let bottles = event.bottles {
+                                            Text("\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: bottles))) kg CO₂ • \(bottles) bottles")
                                                 .font(.caption)
-                                                .foregroundColor(.brandGreen)
-                                        } else if let bottles = event.bottles {
-                                            Text("\(bottles) bottles")
+                                                .foregroundColor(.brandBlueLight)
+                                        } else if let amount = event.amount {
+                                            Text("Estimated value: $\(String(format: "%.2f", amount))")
                                                 .font(.caption)
                                                 .foregroundColor(.secondary)
                                         }
