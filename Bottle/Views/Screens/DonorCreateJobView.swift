@@ -20,16 +20,14 @@ struct DonorCreateJobView: View {
     @State private var isRecurring = false
     @State private var tier: JobTier = .residential
     
-    @State private var searchText = ""
-    @State private var results: [MKMapItem] = []
     @State private var coordinate: CLLocationCoordinate2D?
     @State private var selectedLocationResult: LocationSearchResult?
-    @State private var isSearching = false
     @State private var showLocationSearchSheet = false
     
     @State private var isSubmitting = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var showPostedSuccess = false
     @State private var selectedBottlePhoto: PhotosPickerItem?
     @State private var bottlePhotoImage: UIImage?
     @State private var selectedLocationPhoto: PhotosPickerItem?
@@ -37,44 +35,101 @@ struct DonorCreateJobView: View {
     @State private var aiSuggestion: String?
     @State private var isAnalyzingPhoto = false
     private let geminiService = GeminiService()
+    private let quickBottleCounts = [25, 50, 100, 200, 350]
+    private let quickSchedules = ["Today", "Tonight", "This weekend", "Tomorrow morning"]
     
     var body: some View {
         NavigationView {
             Form {
                 Section("Listing") {
-                    TextField("Title", text: $title)
+                    TextField("Title (e.g. Apartment bottles pickup)", text: $title)
                     Picker("Tier", selection: $tier) {
                         Text("Residential").tag(JobTier.residential)
                         Text("Bulk").tag(JobTier.bulk)
                         Text("Commercial").tag(JobTier.commercial)
                     }
-                    TextField("Bottle count", text: $bottleCount)
-                        .keyboardType(.numberPad)
+                    .pickerStyle(.segmented)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Bottle count")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        HStack(spacing: 12) {
+                            Button {
+                                adjustBottleCount(by: -5)
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .font(.title3)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            TextField("0", text: $bottleCount)
+                                .keyboardType(.numberPad)
+                                .multilineTextAlignment(.center)
+
+                            Button {
+                                adjustBottleCount(by: 5)
+                            } label: {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.title3)
+                                    .foregroundColor(.brandGreen)
+                            }
+                        }
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(quickBottleCounts, id: \.self) { count in
+                                    Button("+\(count)") {
+                                        bottleCount = "\(count)"
+                                    }
+                                    .font(.caption)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.brandBlueLight.opacity(0.14))
+                                    .foregroundColor(.primary)
+                                    .cornerRadius(8)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
                 }
                 
                 Section("Location") {
-                    Button("Open Location Search") {
+                    Button {
                         showLocationSearchSheet = true
+                    } label: {
+                        Label(address.isEmpty ? "Search & Select Address" : "Change Address", systemImage: "magnifyingglass")
                     }
-                    TextField("Search address", text: $searchText)
-                        .onChange(of: searchText) { _, _ in searchLocation() }
-                    if isSearching {
-                        ProgressView()
-                    }
-                    ForEach(results, id: \.self) { item in
-                        Button(item.name ?? item.placemark.title ?? "Location") {
-                            select(item)
+
+                    if !address.isEmpty, let coordinate {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label(address, systemImage: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                                .font(.caption)
+                            Text("Lat \(String(format: "%.4f", coordinate.latitude)), Lon \(String(format: "%.4f", coordinate.longitude))")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
                         }
-                    }
-                    if !address.isEmpty {
-                        Label(address, systemImage: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                            .font(.caption)
                     }
                 }
                 
                 Section("Details") {
                     TextField("Schedule", text: $schedule)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(quickSchedules, id: \.self) { option in
+                                Button(option) {
+                                    schedule = option
+                                }
+                                .font(.caption)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color(.secondarySystemBackground))
+                                .cornerRadius(8)
+                            }
+                        }
+                    }
                     Toggle("Recurring", isOn: $isRecurring)
                     TextField("Notes", text: $notes, axis: .vertical)
                         .lineLimit(3...5)
@@ -116,12 +171,20 @@ struct DonorCreateJobView: View {
                 }
                 
                 Section {
+                    if !canSubmit {
+                        Text(missingRequirementsText)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
                     Button(action: create) {
-                        if isSubmitting {
-                            ProgressView()
-                        } else {
-                            Text("Create Listing")
-                                .fontWeight(.semibold)
+                        HStack {
+                            if isSubmitting {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "paperplane.fill")
+                                Text("Post Listing")
+                                    .fontWeight(.semibold)
+                            }
                         }
                     }
                     .disabled(!canSubmit || isSubmitting)
@@ -139,6 +202,11 @@ struct DonorCreateJobView: View {
             } message: {
                 Text(errorMessage)
             }
+            .alert("Listing posted", isPresented: $showPostedSuccess) {
+                Button("Done") { dismiss() }
+            } message: {
+                Text("Your pickup is now visible to nearby collectors.")
+            }
             .sheet(isPresented: $showLocationSearchSheet) {
                 LocationSearchView(selectedLocation: $selectedLocationResult)
             }
@@ -146,8 +214,6 @@ struct DonorCreateJobView: View {
                 guard let newValue else { return }
                 coordinate = newValue.coordinate
                 address = newValue.address
-                searchText = newValue.name
-                results = []
             }
             .onChange(of: selectedBottlePhoto) { _, newValue in
                 Task {
@@ -172,32 +238,19 @@ struct DonorCreateJobView: View {
     private var canSubmit: Bool {
         !title.isEmpty && (Int(bottleCount) ?? 0) > 0 && coordinate != nil && !address.isEmpty
     }
-    
-    private func searchLocation() {
-        guard !searchText.isEmpty else {
-            results = []
-            return
-        }
-        isSearching = true
-        let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = searchText
-        request.region = MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
-            span: MKCoordinateSpan(latitudeDelta: 0.4, longitudeDelta: 0.4)
-        )
-        MKLocalSearch(request: request).start { response, _ in
-            DispatchQueue.main.async {
-                isSearching = false
-                results = response?.mapItems ?? []
-            }
-        }
+
+    private var missingRequirementsText: String {
+        var missing: [String] = []
+        if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { missing.append("title") }
+        if (Int(bottleCount) ?? 0) <= 0 { missing.append("bottle count") }
+        if coordinate == nil || address.isEmpty { missing.append("location") }
+        if missing.isEmpty { return "" }
+        return "Complete: \(missing.joined(separator: ", "))."
     }
-    
-    private func select(_ item: MKMapItem) {
-        coordinate = item.placemark.coordinate
-        address = item.placemark.title ?? item.name ?? ""
-        results = []
-        searchText = item.name ?? searchText
+
+    private func adjustBottleCount(by delta: Int) {
+        let current = max(0, Int(bottleCount) ?? 0)
+        bottleCount = "\(max(0, current + delta))"
     }
     
     private func create() {
@@ -223,7 +276,7 @@ struct DonorCreateJobView: View {
                     locationPhotoBase64: locationPhotoImage?.jpegData(compressionQuality: 0.6)?.base64EncodedString()
                 )
                 isSubmitting = false
-                dismiss()
+                showPostedSuccess = true
             } catch {
                 isSubmitting = false
                 errorMessage = error.localizedDescription

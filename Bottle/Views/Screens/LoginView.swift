@@ -29,7 +29,7 @@ struct LoginView: View {
             LinearGradient(
                 colors: colorScheme == .dark
                     ? [Color.brandBlack, Color.brandBlueDark]
-                    : [Color.brandGreen, Color.brandBlueDark, Color.brandBlueLight],
+                    : [Color(hex: "BFE2FF"), Color(hex: "9CCFFF"), Color(hex: "78B6F6")],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
