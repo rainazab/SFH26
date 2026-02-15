@@ -29,6 +29,14 @@ class HapticManager {
         let generator = UISelectionFeedbackGenerator()
         generator.selectionChanged()
     }
+
+    func success() {
+        notification(.success)
+    }
+
+    func error() {
+        notification(.error)
+    }
 }
 
 #else
@@ -42,6 +50,8 @@ class HapticManager {
     func impact(_ style: Int) {}
     func notification(_ type: Int) {}
     func selection() {}
+    func success() {}
+    func error() {}
 }
 
 #endif

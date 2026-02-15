@@ -189,7 +189,7 @@ struct CollectorJobsView: View {
                 }
             } else {
                 ZStack(alignment: .top) {
-                    Color(.systemGray6)
+                    Color(.secondarySystemBackground)
                         .ignoresSafeArea()
 
                     VStack(spacing: 0) {

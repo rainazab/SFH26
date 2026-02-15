@@ -72,24 +72,38 @@ enum MongoError: Error {
     case notFound
 }
 
-enum GeminiError: Error {
+enum GeminiError: LocalizedError {
     case missingAPIKey
+    case imageProcessingFailed
     case invalidResponse
     case rateLimitExceeded
-    case imageProcessingFailed
+    case networkError
 }
 
-extension GeminiError: LocalizedError {
+extension GeminiError {
     var errorDescription: String? {
         switch self {
         case .missingAPIKey:
-            return "Missing API key: add GEMINI_API_KEY to App-Info.plist or your run environment."
-        case .invalidResponse:
-            return "AI service returned an unexpected response."
-        case .rateLimitExceeded:
-            return "AI rate limit reached. Try again shortly."
+            return "Gemini AI is not configured. Please check your settings."
         case .imageProcessingFailed:
-            return "Could not process the image for AI analysis."
+            return "Couldn't process image. Try taking a clearer photo."
+        case .invalidResponse:
+            return "AI couldn't analyze this photo. Enter count manually."
+        case .rateLimitExceeded:
+            return "Too many AI requests. Wait 1 minute or enter manually."
+        case .networkError:
+            return "Network error. Check connection and try again."
+        }
+    }
+
+    var recoverySuggestion: String? {
+        switch self {
+        case .rateLimitExceeded:
+            return "Wait 60 seconds before trying AI count again."
+        case .networkError:
+            return "Check your internet connection."
+        default:
+            return "You can always enter the bottle count manually."
         }
     }
 }

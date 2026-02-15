@@ -28,9 +28,11 @@ struct CompletePickupView: View {
     @State private var aiIsRecyclable: Bool?
     @State private var aiMaterials: MaterialBreakdown?
     @State private var isCountingWithAI = false
+    @State private var isLoadingPhoto = false
     @State private var aiTask: Task<Void, Never>?
     @State private var showImpactBurst = false
     @State private var confirmedLowConfidence = false
+    @State private var isCountAutoFilled = false
     
     private let geminiService = GeminiService()
     
@@ -61,7 +63,11 @@ struct CompletePickupView: View {
                             RoundedRectangle(cornerRadius: 12)
                                 .fill(Color(.secondarySystemBackground))
                                 .frame(height: 220)
-                            if let photoImage {
+
+                            if isLoadingPhoto {
+                                ProgressView()
+                                    .scaleEffect(1.5)
+                            } else if let photoImage {
                                 Image(uiImage: photoImage)
                                     .resizable()
                                     .scaledToFill()
@@ -70,8 +76,14 @@ struct CompletePickupView: View {
                                     .clipped()
                                     .cornerRadius(12)
                             } else {
-                                Label("Take pickup photo", systemImage: "camera.fill")
-                                    .foregroundColor(.secondary)
+                                VStack(spacing: 12) {
+                                    Image(systemName: "camera.fill")
+                                        .font(.system(size: 48))
+                                        .foregroundColor(.secondary)
+                                    Text("Take pickup photo")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
                             }
                         }
                     }
@@ -102,47 +114,87 @@ struct CompletePickupView: View {
                     }
                     
                     if let aiCount, let aiConfidence {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("AI Detected: \(aiCount) bottles (\(aiConfidence)% confidence)")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                            Text("AI impact estimate aligns with ~\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: aiCount))) kg CO₂")
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 8) {
+                                Image(systemName: confidenceIcon(aiConfidence))
+                                    .foregroundColor(confidenceColor(aiConfidence))
+                                    .font(.title3)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("AI Detected: \(aiCount) bottles")
+                                        .font(.headline)
+
+                                    HStack(spacing: 4) {
+                                        Text("\(aiConfidence)%")
+                                            .fontWeight(.semibold)
+                                        Text(confidenceLabel(aiConfidence))
+                                    }
+                                    .font(.caption)
+                                    .foregroundColor(confidenceColor(aiConfidence))
+                                }
+
+                                Spacer()
+                            }
+
+                            Divider()
+
+                            Text("Impact: ~\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: aiCount))) kg CO₂")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            if let aiIsRecyclable {
-                                Text(aiIsRecyclable ? "Likely CRV-eligible recyclables" : "Mixed/non-CRV materials detected")
-                                    .font(.caption)
-                                    .foregroundColor(aiIsRecyclable ? .green : .orange)
+
+                            if let aiMaterials {
+                                HStack(spacing: 8) {
+                                    MaterialPill(icon: "drop.fill", count: aiMaterials.plastic, label: "Plastic", color: .blue)
+                                    MaterialPill(icon: "leaf.fill", count: aiMaterials.aluminum, label: "Aluminum", color: .gray)
+                                    MaterialPill(icon: "sparkles", count: aiMaterials.glass, label: "Glass", color: .green)
+                                }
                             }
+
+                            if let aiIsRecyclable {
+                                HStack(spacing: 4) {
+                                    Image(systemName: aiIsRecyclable ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                                        .foregroundColor(aiIsRecyclable ? .green : .orange)
+                                    Text(aiIsRecyclable ? "CRV-eligible" : "Mixed materials")
+                                }
+                                .font(.caption)
+                            }
+
                             if let aiNotes {
                                 Text(aiNotes)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
+                                    .padding(.top, 4)
                             }
-                            if let aiMaterials {
-                                HStack(spacing: 10) {
-                                    Text("Plastic: \(aiMaterials.plastic)")
-                                    Text("Aluminum: \(aiMaterials.aluminum)")
-                                    Text("Glass: \(aiMaterials.glass)")
-                                }
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                            }
+
                             if aiConfidence < 70 {
-                                Text("Low confidence. Please review and adjust count before verifying.")
-                                    .font(.caption2)
-                                    .foregroundColor(.orange)
-                                Toggle("AI confidence is low - I confirm this count manually", isOn: $confirmedLowConfidence)
-                                    .font(.caption2)
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                            .foregroundColor(.orange)
+                                        Text("Low AI confidence - please verify")
+                                            .font(.caption)
+                                            .fontWeight(.medium)
+                                    }
+
+                                    Toggle("I confirm this count is accurate", isOn: $confirmedLowConfidence)
+                                        .font(.caption)
+                                }
+                                .padding(.top, 8)
                             }
-                            Text("Count is auto-filled from AI. You can edit it below any time.")
+
+                            Text("Count auto-filled. Edit below if needed.")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
+                                .padding(.top, 4)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding()
-                        .background(Color.purple.opacity(0.1))
+                        .background(confidenceBackgroundColor(aiConfidence))
                         .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(confidenceColor(aiConfidence), lineWidth: 1)
+                        )
                     }
                     
                     VStack(alignment: .leading, spacing: 8) {
@@ -152,8 +204,13 @@ struct CompletePickupView: View {
                         TextField("Enter collected bottles", text: $bottleCount)
                             .keyboardType(.numberPad)
                             .padding()
-                            .background(Color(.secondarySystemBackground))
+                            .background(
+                                isCountAutoFilled
+                                ? Color.green.opacity(0.1)
+                                : Color(.secondarySystemBackground)
+                            )
                             .cornerRadius(10)
+                            .animation(.easeInOut, value: isCountAutoFilled)
                     }
                     
                     Button(action: complete) {
@@ -202,14 +259,29 @@ struct CompletePickupView: View {
                 CameraImagePicker(image: $photoImage)
                     .ignoresSafeArea()
             }
-            .alert("Error", isPresented: $showError) {
-                Button("OK") {}
+            .alert("AI Count Failed", isPresented: $showError) {
+                Button("Enter Manually", role: .cancel) {}
+                if photoImage != nil && !isCountingWithAI {
+                    Button("Try Again") {
+                        guard let photoImage else { return }
+                        Task { await runAICount(photoImage) }
+                    }
+                }
             } message: {
                 Text(errorMessage)
             }
             .onAppear { bottleCount = "\(job.bottleCount)" }
-            .onChange(of: photoImage) { _, newValue in
-                guard newValue != nil else { return }
+            .onChange(of: photoImage) { oldValue, newValue in
+                guard let newValue else { return }
+                if oldValue == nil {
+                    isLoadingPhoto = true
+                    Task {
+                        try? await Task.sleep(nanoseconds: 300_000_000)
+                        isLoadingPhoto = false
+                    }
+                }
+
+                photoImage = newValue.resizedForUpload()
                 aiCount = nil
                 aiConfidence = nil
                 aiNotes = nil
@@ -218,23 +290,33 @@ struct CompletePickupView: View {
                 confirmedLowConfidence = false
             }
             .onDisappear {
-                aiTask?.cancel()
+                if isCountingWithAI {
+                    aiTask?.cancel()
+                }
             }
         }
         .overlay(alignment: .center) {
             if showImpactBurst {
-                VStack(spacing: 10) {
-                    Text("+\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: Int(bottleCount) ?? job.bottleCount))) kg CO₂")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(.brandBlueLight)
-                    Text("+\(Int(bottleCount) ?? job.bottleCount) bottles")
-                        .font(.headline)
-                        .foregroundColor(.brandGreen)
+                VStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(.green)
+
+                    VStack(spacing: 6) {
+                        Text("+\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: Int(bottleCount) ?? job.bottleCount))) kg CO₂")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.brandGreen)
+
+                        Text("\(Int(bottleCount) ?? job.bottleCount) bottles collected")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
                 }
-                .padding(18)
+                .padding(24)
                 .background(.ultraThinMaterial)
-                .cornerRadius(16)
+                .cornerRadius(20)
+                .shadow(radius: 20)
                 .transition(.scale.combined(with: .opacity))
             }
         }
@@ -250,39 +332,68 @@ struct CompletePickupView: View {
     
     private func runAICount(_ image: UIImage) async {
         guard AppConfig.aiVerificationEnabled else { return }
-        isCountingWithAI = true
-        defer { isCountingWithAI = false }
-        do {
-            async let countTask = geminiService.countBottles(from: image)
-            async let classifyTask = geminiService.classifyRecyclability(from: image)
-            let countResult = try await countTask
-            let classifyResult = try await classifyTask
+        
+        aiTask?.cancel()
+        
+        aiTask = Task {
+            isCountingWithAI = true
+            defer { isCountingWithAI = false }
+            
+            do {
+                try Task.checkCancellation()
+                
+                async let countTask = geminiService.countBottles(from: image)
+                async let classifyTask = geminiService.classifyRecyclability(from: image)
+                
+                let countResult = try await countTask
+                let classifyResult = try await classifyTask
 
-            aiCount = countResult.count
-            aiConfidence = countResult.confidence
-            aiNotes = classifyResult.summary
-            aiIsRecyclable = classifyResult.isRecyclable
-            aiMaterials = countResult.materials
+                aiCount = countResult.count
+                aiConfidence = countResult.confidence
+                aiNotes = classifyResult.summary
+                aiIsRecyclable = classifyResult.isRecyclable
+                aiMaterials = countResult.materials
 
-            // AI-first flow: auto-fill from Gemini unless confidence is too low.
-            if countResult.confidence >= 60 {
-                bottleCount = "\(countResult.count)"
+                if countResult.confidence >= 60 {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        bottleCount = "\(countResult.count)"
+                    }
+                    HapticManager.shared.success()
+                    isCountAutoFilled = true
+                    Task {
+                        try? await Task.sleep(nanoseconds: 2_000_000_000)
+                        withAnimation {
+                            isCountAutoFilled = false
+                        }
+                    }
+                }
+                
+            } catch is CancellationError {
+                return
+            } catch let error as GeminiError {
+                errorMessage = error.localizedDescription + "\n\n" + (error.recoverySuggestion ?? "")
+                showError = true
+                HapticManager.shared.error()
+            } catch {
+                errorMessage = "AI couldn't analyze photo right now. Enter count manually."
+                showError = true
+                HapticManager.shared.error()
             }
-        } catch is CancellationError {
-            return
-        } catch let geminiError as GeminiError {
-            errorMessage = geminiError.localizedDescription
-            showError = true
-        } catch {
-            errorMessage = "AI couldn't analyze this photo right now (\(error.localizedDescription)). You can still enter the count manually."
-            showError = true
         }
     }
     
     private func complete() {
         guard let count = Int(bottleCount), count > 0 else {
-            errorMessage = "Enter a valid bottle count."
+            errorMessage = "Please enter a valid bottle count greater than 0."
             showError = true
+            HapticManager.shared.error()
+            return
+        }
+
+        if abs(count - job.bottleCount) > max(1, job.bottleCount / 2) {
+            errorMessage = "Count differs significantly from expected \(job.bottleCount). Please verify."
+            showError = true
+            HapticManager.shared.error()
             return
         }
         
@@ -293,10 +404,11 @@ struct CompletePickupView: View {
                     job,
                     bottleCount: count,
                     aiVerified: AppConfig.aiVerificationEnabled && aiCount != nil,
-                    proofPhotoBase64: photoImage?.jpegData(compressionQuality: 0.6)?.base64EncodedString(),
+                    proofPhotoBase64: optimizedProofPhotoBase64(photoImage),
                     aiConfidence: aiConfidence,
                     materialBreakdown: aiMaterials
                 )
+                HapticManager.shared.success()
                 withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) {
                     showImpactBurst = true
                 }
@@ -310,8 +422,64 @@ struct CompletePickupView: View {
                 isSubmitting = false
                 errorMessage = error.localizedDescription
                 showError = true
+                HapticManager.shared.error()
             }
         }
+    }
+
+    private func confidenceColor(_ confidence: Int) -> Color {
+        switch confidence {
+        case 80...: return .green
+        case 60..<80: return .yellow
+        default: return .orange
+        }
+    }
+
+    private func confidenceIcon(_ confidence: Int) -> String {
+        switch confidence {
+        case 80...: return "checkmark.seal.fill"
+        case 60..<80: return "exclamationmark.circle.fill"
+        default: return "exclamationmark.triangle.fill"
+        }
+    }
+
+    private func confidenceLabel(_ confidence: Int) -> String {
+        switch confidence {
+        case 80...: return "High"
+        case 60..<80: return "Medium"
+        default: return "Low"
+        }
+    }
+
+    private func confidenceBackgroundColor(_ confidence: Int) -> Color {
+        switch confidence {
+        case 80...: return Color.green.opacity(0.08)
+        case 60..<80: return Color.yellow.opacity(0.08)
+        default: return Color.orange.opacity(0.08)
+        }
+    }
+
+    private func optimizedProofPhotoBase64(_ image: UIImage?) -> String? {
+        guard let original = image else { return nil }
+
+        // Keep margin under Firestore's per-field max (~1,048,487 bytes)
+        let maxBase64Bytes = 900_000
+        let maxDimensionCandidates: [CGFloat] = [1200, 1000, 900, 800, 700, 600]
+        let qualityCandidates: [CGFloat] = [0.65, 0.55, 0.45, 0.35, 0.28, 0.22]
+
+        for maxDimension in maxDimensionCandidates {
+            let resized = original.resized(maxDimension: maxDimension) ?? original
+            for quality in qualityCandidates {
+                guard let data = resized.jpegData(compressionQuality: quality) else { continue }
+                let base64 = data.base64EncodedString()
+                if base64.utf8.count <= maxBase64Bytes {
+                    return base64
+                }
+            }
+        }
+
+        // If still too large, omit photo rather than failing completion.
+        return nil
     }
 }
 
@@ -338,6 +506,48 @@ private struct ImpactContextRow: View {
             Text(contextText)
                 .font(.caption2)
                 .foregroundColor(.secondary)
+        }
+    }
+}
+
+struct MaterialPill: View {
+    let icon: String
+    let count: Int
+    let label: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.caption2)
+            Text("\(count)")
+                .font(.caption)
+                .fontWeight(.semibold)
+        }
+        .foregroundColor(color)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(color.opacity(0.15))
+        .cornerRadius(8)
+        .accessibilityLabel("\(label) \(count)")
+    }
+}
+
+extension UIImage {
+    func resizedForUpload() -> UIImage? {
+        resized(maxDimension: 1200)
+    }
+
+    func resized(maxDimension: CGFloat) -> UIImage? {
+        let size = self.size
+        let ratio = maxDimension / max(size.width, size.height)
+
+        if ratio >= 1 { return self }
+
+        let newSize = CGSize(width: size.width * ratio, height: size.height * ratio)
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        return renderer.image { _ in
+            self.draw(in: CGRect(origin: .zero, size: newSize))
         }
     }
 }

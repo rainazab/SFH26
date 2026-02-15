@@ -31,6 +31,12 @@ class GeminiService {
     // MARK: - Primary Feature: Bottle Counting
     /// DEMO THIS FOR GEMINI TRACK!
     func countBottles(from image: UIImage) async throws -> BottleCountResult {
+        return try await withRetry(maxAttempts: 2) {
+            try await _countBottles(from: image)
+        }
+    }
+
+    private func _countBottles(from image: UIImage) async throws -> BottleCountResult {
         // Convert image to base64
         guard let imageData = image.jpegData(compressionQuality: 0.8) else {
             throw GeminiError.imageProcessingFailed
@@ -101,7 +107,14 @@ class GeminiService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch is URLError {
+            throw GeminiError.networkError
+        } catch {
+            throw GeminiError.invalidResponse
+        }
         
         guard let httpResponse = response as? HTTPURLResponse else {
             throw GeminiError.invalidResponse
@@ -132,6 +145,23 @@ class GeminiService {
         
         let result = try JSONDecoder().decode(BottleCountResult.self, from: jsonData)
         return result
+    }
+
+    private func withRetry<T>(maxAttempts: Int, operation: () async throws -> T) async throws -> T {
+        var lastError: Error?
+        for attempt in 1...maxAttempts {
+            do {
+                return try await operation()
+            } catch GeminiError.rateLimitExceeded {
+                throw GeminiError.rateLimitExceeded
+            } catch {
+                lastError = error
+                if attempt < maxAttempts {
+                    try await Task.sleep(nanoseconds: 1_000_000_000)
+                }
+            }
+        }
+        throw lastError ?? GeminiError.invalidResponse
     }
     
     // MARK: - Verification Feature

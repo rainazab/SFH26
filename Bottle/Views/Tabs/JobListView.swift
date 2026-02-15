@@ -199,7 +199,7 @@ struct JobListView: View {
             }
             .navigationTitle("Posts")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(.systemGray6), for: .navigationBar)
+            .toolbarBackground(Color(.secondarySystemBackground), for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .searchable(text: $searchText, prompt: "Search posts...")
             .sheet(isPresented: $showingFilters) {
@@ -250,7 +250,7 @@ struct JobListView: View {
                 openPendingCollectionPointIfPossible()
             }
         }
-        .background(Color(.systemGray6).ignoresSafeArea())
+        .background(Color(.secondarySystemBackground).ignoresSafeArea())
         .navigationViewStyle(.stack)
     }
 
