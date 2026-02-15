@@ -22,7 +22,7 @@ struct WelcomeView: View {
         ),
         (
             icon: "map.fill",
-            title: "Find Jobs Near You",
+            title: "Find Posts Near You",
             subtitle: "See all available bottles on an interactive map. Claim the best ones first.",
             color: "3F56AE"
         ),

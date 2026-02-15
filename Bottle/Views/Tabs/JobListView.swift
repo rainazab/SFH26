@@ -34,7 +34,7 @@ struct JobListView: View {
         NavigationView {
             VStack(spacing: 0) {
                 if dataService.hasActiveJob {
-                    Text("Complete your current pickup before claiming another job.")
+                    Text("Complete your current pickup before claiming another post.")
                         .font(.caption)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -72,7 +72,7 @@ struct JobListView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
                         FilterPill(
-                            title: "All Jobs",
+                            title: "All Posts",
                             isSelected: selectedTier == nil,
                             color: .gray
                         ) {
@@ -142,8 +142,8 @@ struct JobListView: View {
                     .padding()
                 }
             }
-            .navigationTitle("Jobs")
-            .searchable(text: $searchText, prompt: "Search jobs...")
+            .navigationTitle("Posts")
+            .searchable(text: $searchText, prompt: "Search posts...")
             .sheet(isPresented: $showingFilters) {
                 FiltersView(minEstimatedValue: $minEstimatedValue, maxDistance: $maxDistance)
             }
@@ -246,7 +246,7 @@ struct JobCard: View {
             }
             
             Button(action: onClaim) {
-                Text("Claim Job")
+                Text("Claim Post")
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)

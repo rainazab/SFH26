@@ -78,10 +78,10 @@ struct MapView: View {
             VStack {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Nearby Jobs")
+                        Text("Nearby Posts")
                             .font(.title2)
                             .fontWeight(.bold)
-                        Text("\(jobs.count) jobs nearby")
+                        Text("\(jobs.count) posts nearby")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
@@ -153,7 +153,7 @@ struct MapView: View {
                         HStack(spacing: 8) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundColor(.accentOrange)
-                            Text("High-value job \(String(format: "%.1f", highValueJob.distance ?? 0)) mi away!")
+                            Text("High-value post \(String(format: "%.1f", highValueJob.distance ?? 0)) mi away!")
                                 .font(.caption)
                                 .fontWeight(.semibold)
                             Spacer()
@@ -201,7 +201,7 @@ struct MapView: View {
                         Image(systemName: "sparkles")
                             .foregroundColor(.brandGreen)
                             .font(.title3)
-                        Text("New job posted nearby!")
+                        Text("New post nearby!")
                             .fontWeight(.semibold)
                         Spacer()
                         Button("View") {

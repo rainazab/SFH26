@@ -238,8 +238,8 @@ final class DataService: ObservableObject, DataServiceProtocol {
 
     func claimJob(_ job: BottleJob) async throws {
         guard let user = currentUser else { throw AppError.unauthorized }
-        guard user.type == .collector else { throw AppError.validation("Only collectors can claim jobs.") }
-        guard canClaimNewJob else { throw AppError.validation("Complete your current pickup before claiming another job.") }
+        guard user.type == .collector else { throw AppError.validation("Only collectors can claim posts.") }
+        guard canClaimNewJob else { throw AppError.validation("Complete your current pickup before claiming another post.") }
         try transitionJob(job, to: .claimed)
 
         #if canImport(FirebaseFirestore)
@@ -377,7 +377,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
         locationPhotoBase64: String? = nil
     ) async throws {
         guard let user = currentUser else { throw AppError.unauthorized }
-        guard user.type == .donor else { throw AppError.validation("Only donors can create jobs.") }
+        guard user.type == .donor else { throw AppError.validation("Only donors can create posts.") }
 
         #if canImport(FirebaseFirestore)
         if isFirestoreEnabled {
@@ -561,7 +561,7 @@ private extension DataService {
             Task { @MainActor in
                 guard let self else { return }
                 if let error {
-                    self.lastSyncError = "jobs sync failed: \(error.localizedDescription)"
+                    self.lastSyncError = "posts sync failed: \(error.localizedDescription)"
                     return
                 }
                 guard let docs = snapshot?.documents else { return }
@@ -643,7 +643,7 @@ private extension DataService {
         let ref = db.collection("jobs").document(job.id)
         let snap = try await ref.getDocument()
         guard var record = FirestoreJobRecord(document: snap), record.status == .available else {
-            throw AppError.validation("This job is no longer available.")
+            throw AppError.validation("This post is no longer available.")
         }
         try transitionJob(record.job, to: .claimed)
         record.status = .claimed

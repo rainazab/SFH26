@@ -197,7 +197,7 @@ struct ProfileView: View {
                             Divider()
                             AboutRow(icon: "heart.circle.fill", title: "Social Impact", description: "Supporting 150K+ collectors across California")
                             Divider()
-                            AboutRow(icon: "info.circle.fill", title: "How It Works", description: "Donors post bottles, collectors claim jobs, everyone benefits")
+                            AboutRow(icon: "info.circle.fill", title: "How It Works", description: "Donors create posts, collectors claim posts, everyone benefits")
                         }
                     }
                     .padding()

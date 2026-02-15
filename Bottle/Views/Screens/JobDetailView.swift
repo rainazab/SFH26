@@ -106,7 +106,7 @@ struct JobDetailView: View {
                             HStack {
                                 Image(systemName: "repeat.circle.fill")
                                     .foregroundColor(Color(hex: "FF6B6B"))
-                                Text("Recurring Job")
+                                Text("Recurring Post")
                                     .font(.subheadline)
                                     .fontWeight(.semibold)
                                 Spacer()
@@ -221,7 +221,7 @@ struct JobDetailView: View {
                                     } else {
                                         Image(systemName: "checkmark.circle.fill")
                                     }
-                                    Text(isClaiming ? "Claiming..." : "Claim Impact Job")
+                                    Text(isClaiming ? "Claiming..." : "Claim Impact Post")
                                         .fontWeight(.semibold)
                                 }
                                 .frame(maxWidth: .infinity)
@@ -280,7 +280,7 @@ struct JobDetailView: View {
                 }
             }
         }
-        .alert("Job Claimed!", isPresented: $showingClaimSuccess) {
+        .alert("Post Claimed!", isPresented: $showingClaimSuccess) {
             Button("OK") {
                 dismiss()
             }

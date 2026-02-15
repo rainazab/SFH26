@@ -26,7 +26,6 @@ struct CompletePickupView: View {
     @State private var aiCount: Int?
     @State private var aiConfidence: Int?
     @State private var aiNotes: String?
-    @State private var aiEstimatedCRV: Double?
     @State private var aiIsRecyclable: Bool?
     @State private var aiMaterials: MaterialBreakdown?
     @State private var isCountingWithAI = false
@@ -91,11 +90,9 @@ struct CompletePickupView: View {
                             Text("AI Detected: \(aiCount) bottles (\(aiConfidence)% confidence)")
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
-                            if let aiEstimatedCRV {
-                                Text("AI impact estimate aligns with ~\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: aiCount))) kg CO₂")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
+                            Text("AI impact estimate aligns with ~\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: aiCount))) kg CO₂")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                             if let aiIsRecyclable {
                                 Text(aiIsRecyclable ? "Likely CRV-eligible recyclables" : "Mixed/non-CRV materials detected")
                                     .font(.caption)
@@ -228,7 +225,6 @@ struct CompletePickupView: View {
             aiCount = countResult.count
             aiConfidence = countResult.confidence
             aiNotes = classifyResult.summary
-            aiEstimatedCRV = classifyResult.estimatedValue
             aiIsRecyclable = classifyResult.isRecyclable
             aiMaterials = countResult.materials
 

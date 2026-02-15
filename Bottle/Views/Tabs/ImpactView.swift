@@ -64,7 +64,7 @@ struct ImpactView: View {
                         )
                         MiniStatCard(
                             value: "\(dataService.platformStats.totalJobsCompleted)",
-                            subtitle: "jobs completed",
+                            subtitle: "posts completed",
                             icon: "checkmark.seal.fill",
                             color: .brandGreen
                         )

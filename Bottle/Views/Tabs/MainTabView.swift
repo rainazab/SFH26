@@ -38,7 +38,7 @@ struct MainTabView: View {
             } else {
                 JobListView()
                     .tabItem {
-                        Label("Jobs", systemImage: "list.bullet")
+                        Label("Posts", systemImage: "list.bullet")
                     }
                     .tag(1)
             }
@@ -91,7 +91,7 @@ struct MainTabView: View {
                 locationService.requestPermission()
             }
         } message: {
-            Text("bottlr uses your location to show nearby jobs and sort pickups around you.")
+            Text("bottlr uses your location to show nearby posts and sort pickups around you.")
         }
     }
 }

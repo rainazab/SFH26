@@ -116,10 +116,10 @@ final class MockDataService: ObservableObject {
     
     func claimJob(_ job: BottleJob) async throws {
         guard currentUser.type == .collector else {
-            throw AppError.validation("Only collectors can claim jobs.")
+            throw AppError.validation("Only collectors can claim posts.")
         }
         guard canClaimNewJob else {
-            throw AppError.validation("Complete your current pickup before claiming another job.")
+            throw AppError.validation("Complete your current pickup before claiming another post.")
         }
         
         try await Task.sleep(nanoseconds: 500_000_000)
@@ -206,7 +206,7 @@ final class MockDataService: ObservableObject {
         tier: JobTier
     ) async throws {
         guard currentUser.type == .donor else {
-            throw AppError.validation("Only donors can create jobs.")
+            throw AppError.validation("Only donors can create posts.")
         }
         
         try await Task.sleep(nanoseconds: 400_000_000)

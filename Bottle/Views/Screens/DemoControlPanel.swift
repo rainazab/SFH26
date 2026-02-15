@@ -39,7 +39,7 @@ struct DemoControlPanel: View {
                 
                 Section("Status") {
                     HStack {
-                        Text("Active Job")
+                        Text("Active Post")
                         Spacer()
                         Text(mockData.hasActiveJob ? "Yes" : "No")
                     }
@@ -54,7 +54,7 @@ struct DemoControlPanel: View {
                     Button("Reset Demo") {
                         mockData.resetDemo()
                     }
-                    Button("Inject High-Value Job") {
+                    Button("Inject High-Value Post") {
                         Task { await dataService.injectHighValueDemoJob() }
                     }
                     if mockData.currentUser.type == .donor {
