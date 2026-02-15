@@ -36,28 +36,39 @@ struct DonorHomeView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 24) {
-                    if showHostTip {
-                        HStack(alignment: .top, spacing: 10) {
-                            Image(systemName: "lightbulb.fill")
-                                .foregroundColor(.brandBlueLight)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("First step")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text("Post your first collection point so nearby collectors can claim it.")
-                                    .font(.subheadline)
+                    if shouldShowHostTip {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(alignment: .top) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "lightbulb.fill")
+                                        .foregroundColor(.brandBlueDark)
+                                    Text("First step")
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.brandBlueDark)
+                                }
+                                Spacer()
+                                Button {
+                                    showHostTip = false
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.brandBlueDark.opacity(0.65))
+                                }
                             }
-                            Spacer()
-                            Button {
-                                showHostTip = false
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.secondary)
-                            }
+
+                            Text("Post your first collection point so nearby collectors can claim it.")
+                                .font(.subheadline)
+                                .foregroundColor(.primary)
                         }
-                        .padding()
-                        .background(Color(.secondarySystemBackground))
-                        .cornerRadius(12)
+                        .padding(14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(Color.brandBlueLight.opacity(0.16))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.brandBlueLight.opacity(0.35), lineWidth: 1)
+                        )
                         .padding(.horizontal)
                     }
 
@@ -195,15 +206,27 @@ struct DonorHomeView: View {
                         .padding(.horizontal)
                     }
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("LAST IMPACT")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("\(dataService.impactStats.totalBottles) bottles diverted")
-                            .font(.headline)
-                        Text("\(String(format: "%.1f", dataService.impactStats.co2Saved)) kg CO₂ saved")
-                            .font(.subheadline)
-                            .foregroundColor(.brandBlueLight)
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Label("Last Impact", systemImage: "leaf.fill")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.brandBlueDark)
+                            Spacer()
+                        }
+
+                        HStack(spacing: 12) {
+                            impactMetricCard(
+                                title: "Bottles diverted",
+                                value: "\(dataService.impactStats.totalBottles)",
+                                systemImage: "waterbottle.fill"
+                            )
+                            impactMetricCard(
+                                title: "CO2 saved",
+                                value: String(format: "%.1f kg", dataService.impactStats.co2Saved),
+                                systemImage: "leaf.circle.fill"
+                            )
+                        }
                     }
                     .padding()
                     .background(Color(.systemBackground))
@@ -264,6 +287,9 @@ struct DonorHomeView: View {
             }
             .onAppear {
                 focusMapOnPosts()
+                if !myPosts.isEmpty {
+                    showHostTip = false
+                }
             }
             .onChange(of: postsMode) { _, mode in
                 if mode == .map {
@@ -273,6 +299,9 @@ struct DonorHomeView: View {
             .onChange(of: myPosts.count) { _, _ in
                 if postsMode == .map {
                     focusMapOnPosts()
+                }
+                if !myPosts.isEmpty {
+                    showHostTip = false
                 }
             }
         }
@@ -284,6 +313,10 @@ struct DonorHomeView: View {
 
     private var myPosts: [BottleJob] {
         dataService.myPostedJobs.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private var shouldShowHostTip: Bool {
+        showHostTip && myPosts.isEmpty
     }
 
     private func stageLabel(for status: JobStatus) -> String {
@@ -310,6 +343,24 @@ struct DonorHomeView: View {
                 span: MKCoordinateSpan(latitudeDelta: 0.06, longitudeDelta: 0.06)
             )
         )
+    }
+
+    @ViewBuilder
+    private func impactMetricCard(title: String, value: String, systemImage: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Image(systemName: systemImage)
+                .foregroundColor(.brandGreen)
+            Text(value)
+                .font(.headline)
+                .foregroundColor(.primary)
+            Text(title)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(10)
     }
 }
 

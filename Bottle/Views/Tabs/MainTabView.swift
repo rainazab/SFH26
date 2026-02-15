@@ -72,15 +72,10 @@ struct DonorTabView: View {
                 .tabItem { Label("History", systemImage: "clock.fill") }
                 .tag(1)
 
-            DonorMapView()
-                .environmentObject(locationService)
-                .tabItem { Label("Map", systemImage: "map.fill") }
-                .tag(2)
-
             ProfileView()
                 .environmentObject(authService)
                 .tabItem { Label("Profile", systemImage: "person.fill") }
-                .tag(3)
+                .tag(2)
         }
         .accentColor(.brandGreen)
         .onChange(of: selectedTab) { _, _ in
