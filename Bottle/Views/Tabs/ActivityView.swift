@@ -8,14 +8,29 @@
 import SwiftUI
 
 struct ActivityView: View {
-    let pickupHistory = SampleData.shared.pickupHistory
+    @StateObject private var mockData = MockDataService.shared
     @State private var selectedFilter: ActivityFilter = .all
+    @State private var selectedClaimedJob: BottleJob?
+    @State private var showingCompletePickup = false
     
     enum ActivityFilter: String, CaseIterable {
         case all = "All"
         case completed = "Completed"
         case pending = "Pending"
         case upcoming = "Upcoming"
+    }
+
+    private var totalCompleted: Int {
+        mockData.completedJobs.count
+    }
+
+    private var totalBottles: Int {
+        mockData.completedJobs.reduce(0) { $0 + $1.bottleCount }
+    }
+
+    private var todayCompleted: Int {
+        let cal = Calendar.current
+        return mockData.completedJobs.filter { cal.isDateInToday($0.date) }.count
     }
     
     var body: some View {
@@ -25,22 +40,22 @@ struct ActivityView: View {
                 HStack(spacing: 15) {
                     ActivityStatCard(
                         title: "Today",
-                        value: "$52",
-                        subtitle: "520 bottles",
+                        value: "\(todayCompleted)",
+                        subtitle: "drop-offs",
                         color: Color(hex: "00C853")
                     )
                     
                     ActivityStatCard(
-                        title: "This Week",
-                        value: "$179",
-                        subtitle: "1,790 bottles",
+                        title: "Completed",
+                        value: "\(totalCompleted)",
+                        subtitle: "verified pickups",
                         color: Color(hex: "2196F3")
                     )
                     
                     ActivityStatCard(
-                        title: "This Month",
-                        value: "$342",
-                        subtitle: "3,420 bottles",
+                        title: "Bottles",
+                        value: "\(totalBottles)",
+                        subtitle: "diverted",
                         color: Color(hex: "9C27B0")
                     )
                 }
@@ -72,7 +87,17 @@ struct ActivityView: View {
                 // Activity List
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(pickupHistory) { pickup in
+                        if !mockData.claimedJobs.isEmpty {
+                            ForEach(mockData.claimedJobs) { job in
+                                ClaimedJobCard(job: job) {
+                                    selectedClaimedJob = job
+                                    showingCompletePickup = true
+                                }
+                                Divider().padding(.leading, 80)
+                            }
+                        }
+                        
+                        ForEach(mockData.completedJobs) { pickup in
                             ActivityCard(pickup: pickup)
                             Divider()
                                 .padding(.leading, 80)
@@ -81,7 +106,54 @@ struct ActivityView: View {
                 }
             }
             .navigationTitle("Activity")
+            .sheet(isPresented: $showingCompletePickup) {
+                if let job = selectedClaimedJob {
+                    CompletePickupView(job: job)
+                }
+            }
         }
+    }
+}
+
+struct ClaimedJobCard: View {
+    let job: BottleJob
+    let onComplete: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(Color.orange.opacity(0.15))
+                    .frame(width: 50, height: 50)
+                Image(systemName: "clock.fill")
+                    .font(.title2)
+                    .foregroundColor(.orange)
+            }
+            
+            VStack(alignment: .leading, spacing: 6) {
+                Text(job.title)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                Text("Claimed • \(job.bottleCount) bottles")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text("Ready for drop-off verification")
+                    .font(.caption)
+                    .foregroundColor(.brandGreen)
+            }
+            Spacer()
+            Button("Complete") {
+                onComplete()
+            }
+            .font(.caption)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.brandGreen)
+            .foregroundColor(.white)
+            .cornerRadius(8)
+        }
+        .padding()
+        .background(Color(.systemBackground))
     }
 }
 
@@ -159,9 +231,9 @@ struct ActivityCard: View {
             
             Spacer()
             
-            // Earnings
+            // Verification summary
             VStack(alignment: .trailing, spacing: 4) {
-                Text("+$\(String(format: "%.0f", pickup.earnings))")
+                Text("\(pickup.bottleCount) verified")
                     .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(Color(hex: "00C853"))

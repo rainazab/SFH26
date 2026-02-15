@@ -9,6 +9,8 @@ import SwiftUI
 import MapKit
 
 struct MapView: View {
+    @EnvironmentObject var locationService: LocationService
+    @StateObject private var mockData = MockDataService.shared
     @State private var position: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
@@ -19,10 +21,10 @@ struct MapView: View {
     @State private var selectedJob: BottleJob?
     @State private var showingJobDetail = false
     @State private var isPulsing = true
-    @State private var todayEarnings: Double = 52.0
+    @State private var todayEarnings: Double = 0
     @State private var showNewJobToast = false
-    
-    let jobs = SampleData.shared.jobs
+
+    private var jobs: [BottleJob] { mockData.availableJobs }
     
     var nearestHighValueJob: BottleJob? {
         jobs.filter({ $0.payout > 30 }).min(by: { ($0.distance ?? 0) < ($1.distance ?? 0) })
@@ -73,7 +75,7 @@ struct MapView: View {
             VStack {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Available Bottles")
+                        Text("Nearby Jobs")
                             .font(.title2)
                             .fontWeight(.bold)
                         Text("\(jobs.count) jobs nearby")
@@ -110,7 +112,7 @@ struct MapView: View {
                                 .foregroundColor(.secondary)
                             
                             // Animated counter
-                            AnimatedNumber(value: todayEarnings, format: "$%.0f")
+                            AnimatedNumber(value: todayEarnings, format: "%.0f")
                                 .font(.title)
                                 .fontWeight(.bold)
                                 .foregroundColor(Color.brandGreen)
@@ -132,10 +134,10 @@ struct MapView: View {
                                     .foregroundColor(.green)
                             }
                             
-                            Text("$179.00")
+                            Text("\(mockData.completedJobs.reduce(0) { $0 + $1.bottleCount })")
                                 .font(.title2)
                                 .fontWeight(.semibold)
-                            Text("THIS WEEK")
+                            Text("BOTTLES VERIFIED")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -148,7 +150,7 @@ struct MapView: View {
                         HStack(spacing: 8) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundColor(.accentOrange)
-                            Text("High-value job \(String(format: "%.1f", highValueJob.distance ?? 0))mi away!")
+                            Text("High-value job \(String(format: "%.1f", highValueJob.distance ?? 0)) mi away!")
                                 .font(.caption)
                                 .fontWeight(.semibold)
                             Spacer()
@@ -233,12 +235,32 @@ struct MapView: View {
             }
         }
         .onAppear {
+            if let userLocation = locationService.userLocation?.coordinate {
+                position = .region(
+                    MKCoordinateRegion(
+                        center: userLocation,
+                        span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                    )
+                )
+            }
+            todayEarnings = Double(mockData.completedJobs.filter {
+                Calendar.current.isDateInToday($0.date)
+            }.reduce(0) { $0 + $1.bottleCount })
             // Simulate new job appearing for demo
             DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
                 withAnimation(.spring()) {
                     showNewJobToast = true
                     HapticManager.shared.notification(.success)
                 }
+            }
+        }
+        .onChange(of: locationService.userLocation) { _, location in
+            if let location {
+                let region = MKCoordinateRegion(
+                    center: location.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                )
+                position = .region(region)
             }
         }
     }
@@ -275,4 +297,5 @@ struct StatBadge: View {
 
 #Preview {
     MapView()
+        .environmentObject(LocationService())
 }

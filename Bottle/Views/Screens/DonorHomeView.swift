@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct DonorHomeView: View {
+    @StateObject private var mockData = MockDataService.shared
     @State private var bottleCount = ""
     @State private var selectedTimeframe = "This weekend"
     @State private var showingPostSuccess = false
@@ -29,7 +30,7 @@ struct DonorHomeView: View {
                             .fontWeight(.bold)
                             .multilineTextAlignment(.center)
                         
-                        Text("Help local collectors earn income while reducing waste")
+                        Text("Help local collectors recover recyclable bottles and reduce waste")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
@@ -99,9 +100,7 @@ struct DonorHomeView: View {
                                 .cornerRadius(10)
                             }
                             
-                            Button(action: {
-                                showingPostSuccess = true
-                            }) {
+                            NavigationLink(destination: DonorCreateJobView()) {
                                 HStack {
                                     Image(systemName: "plus.circle.fill")
                                     Text("Post Now")
@@ -128,8 +127,8 @@ struct DonorHomeView: View {
                             .foregroundColor(.secondary)
                         
                         HStack(spacing: 20) {
-                            ImpactStat(icon: "cylinder.fill", value: "450", label: "bottles donated", color: Color(hex: "00C853"))
-                            ImpactStat(icon: "dollarsign.circle.fill", value: "$45", label: "earned for community", color: Color(hex: "FF9800"))
+                            ImpactStat(icon: "cylinder.fill", value: "\(mockData.impactStats.totalBottles)", label: "bottles donated", color: Color(hex: "00C853"))
+                            ImpactStat(icon: "dollarsign.circle.fill", value: "$\(Int(mockData.impactStats.totalEarnings))", label: "est. redemption value", color: Color(hex: "FF9800"))
                         }
                         
                         HStack(spacing: 20) {
@@ -144,12 +143,12 @@ struct DonorHomeView: View {
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                             Spacer()
-                            Text("500 bottles")
+                            Text("\(max(mockData.impactStats.totalBottles + 80, 500)) bottles")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
                         
-                        ProgressView(value: 450, total: 500)
+                        ProgressView(value: Double(mockData.impactStats.totalBottles), total: Double(max(mockData.impactStats.totalBottles + 80, 500)))
                             .tint(Color(hex: "00C853"))
                         
                         Text("🏆 Unlock \"Oakland Hero\" badge")
@@ -186,7 +185,7 @@ struct DonorHomeView: View {
                 }
                 .padding(.vertical)
             }
-            .navigationTitle("Donate Bottles")
+            .navigationTitle("Post Bottles")
             .background(Color(.systemGray6))
         }
         .alert("Bottles Posted!", isPresented: $showingPostSuccess) {

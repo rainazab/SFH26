@@ -7,6 +7,7 @@
 
 import SwiftUI
 import FirebaseCore
+import FirebaseAuth
 
 // MARK: - App Delegate for Firebase
 
@@ -16,6 +17,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Configure Firebase
         FirebaseApp.configure()
         
+        // Required for Firebase Phone Auth verification (silent APNs flow).
+        application.registerForRemoteNotifications()
+        
         // Validate API keys on launch
         let missingKeys = Config.validateConfiguration()
         if !missingKeys.isEmpty {
@@ -24,6 +28,26 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         }
         
         return true
+    }
+    
+    func application(_ application: UIApplication,
+                     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        Auth.auth().setAPNSToken(deviceToken, type: .unknown)
+    }
+    
+    func application(_ application: UIApplication,
+                     didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("⚠️ APNs registration failed: \(error.localizedDescription)")
+    }
+    
+    func application(_ application: UIApplication,
+                     didReceiveRemoteNotification notification: [AnyHashable : Any],
+                     fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        if Auth.auth().canHandleNotification(notification) {
+            completionHandler(.noData)
+            return
+        }
+        completionHandler(.noData)
     }
 }
 
@@ -69,25 +93,20 @@ struct BottleApp: App {
 
 struct LoadingView: View {
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [Color.brandGreen, Color.brandGreenLight],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+        GeometryReader { geo in
+            ZStack {
+                LinearGradient(
+                    colors: [Color.brandGreen, Color.brandGreenLight],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
                 .ignoresSafeArea()
-            
-            VStack(spacing: 20) {
-                Image(systemName: "waterbottle.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(.white)
-                
-                Text("BOTTLE")
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundColor(.white)
-                
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+
+                Image("logo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 140, height: 140)
+                    .position(x: geo.size.width / 2, y: geo.size.height / 2)
             }
         }
     }

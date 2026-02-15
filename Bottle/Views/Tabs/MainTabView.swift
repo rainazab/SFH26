@@ -6,13 +6,17 @@
 //
 
 import SwiftUI
+import CoreLocation
 
 struct MainTabView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var locationService: LocationService
+    @StateObject private var mockData = MockDataService.shared
     @State private var selectedTab = 0
+    @State private var showLocationPrompt = false
     
     private var userType: UserType {
-        authService.currentUser?.type ?? .collector
+        mockData.currentUser.type
     }
     
     var body: some View {
@@ -64,10 +68,96 @@ struct MainTabView: View {
         .onChange(of: selectedTab) { _, _ in
             HapticManager.shared.selection()
         }
+        .onAppear {
+            if locationService.authorizationStatus == .notDetermined {
+                showLocationPrompt = true
+            } else if locationService.authorizationStatus == .authorizedWhenInUse || locationService.authorizationStatus == .authorizedAlways {
+                locationService.startUpdatingLocation()
+            }
+        }
+        .onChange(of: locationService.authorizationStatus) { _, status in
+            if status == .authorizedWhenInUse || status == .authorizedAlways {
+                locationService.startUpdatingLocation()
+            }
+        }
+        .onChange(of: locationService.userLocation) { _, location in
+            if let coordinate = location?.coordinate {
+                mockData.updateLocation(coordinate)
+            }
+        }
+        .alert("Enable Location", isPresented: $showLocationPrompt) {
+            Button("Not Now", role: .cancel) {}
+            Button("Enable") {
+                locationService.requestPermission()
+            }
+        } message: {
+            Text("BOTTLR uses your location to show nearby jobs and sort pickups around you.")
+        }
+        .sheet(isPresented: $authService.shouldPromptRoleSelection) {
+            RoleSelectionView { selectedType in
+                authService.setCurrentUserType(selectedType)
+            }
+        }
+    }
+}
+
+struct RoleSelectionView: View {
+    let onSelect: (UserType) -> Void
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                Text("How will you use BOTTLR?")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 24)
+
+                Text("Choose your role to personalize your experience.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                Button {
+                    onSelect(.collector)
+                } label: {
+                    HStack {
+                        Image(systemName: "figure.walk")
+                        Text("I want to collect")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.brandGreen)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
+
+                Button {
+                    onSelect(.donor)
+                } label: {
+                    HStack {
+                        Image(systemName: "house")
+                        Text("I want to donate")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue.opacity(0.15))
+                    .foregroundColor(.blue)
+                    .cornerRadius(12)
+                }
+
+                Spacer()
+            }
+            .padding()
+            .interactiveDismissDisabled(true)
+            .navigationBarTitleDisplayMode(.inline)
+        }
     }
 }
 
 #Preview {
     MainTabView()
         .environmentObject(AuthService())
+        .environmentObject(LocationService())
 }

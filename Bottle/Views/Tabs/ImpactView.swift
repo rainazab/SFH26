@@ -9,7 +9,8 @@ import SwiftUI
 import Charts
 
 struct ImpactView: View {
-    let impactStats = SampleData.shared.impactStats
+    @StateObject private var mockData = MockDataService.shared
+    private var impactStats: ImpactStats { mockData.impactStats }
     
     var body: some View {
         NavigationView {
@@ -28,7 +29,7 @@ struct ImpactView: View {
                         HStack(spacing: 15) {
                             MiniStatCard(
                                 value: "$\(Int(impactStats.totalEarnings))",
-                                subtitle: "earned",
+                                subtitle: "est. value tracked",
                                 icon: "dollarsign.circle.fill",
                                 color: Color(hex: "FF9800")
                             )

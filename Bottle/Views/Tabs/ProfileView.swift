@@ -9,9 +9,12 @@ import SwiftUI
 
 struct ProfileView: View {
     @EnvironmentObject var authService: AuthService
+    @StateObject private var mockData = MockDataService.shared
+    @State private var logoTapCount = 0
+    @State private var showDemoPanel = false
     
     private var profile: UserProfile {
-        authService.currentUser ?? SampleData.shared.collectorProfile
+        mockData.currentUser
     }
     
     var body: some View {
@@ -29,6 +32,16 @@ struct ProfileView: View {
                             Text(profile.name.prefix(1))
                                 .font(.system(size: 40, weight: .bold))
                                 .foregroundColor(Color(hex: "00C853"))
+                        }
+                        .onTapGesture {
+                            logoTapCount += 1
+                            if logoTapCount >= 5 {
+                                showDemoPanel = true
+                                logoTapCount = 0
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                logoTapCount = 0
+                            }
                         }
                         
                         VStack(spacing: 8) {
@@ -85,7 +98,7 @@ struct ProfileView: View {
                     
                     // About Section
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("ABOUT FLIP")
+                        Text("ABOUT BOTTLR")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
@@ -151,6 +164,9 @@ struct ProfileView: View {
             }
             .navigationTitle("Profile")
             .background(Color(.systemGray6))
+            .sheet(isPresented: $showDemoPanel) {
+                DemoControlPanel()
+            }
         }
     }
 }

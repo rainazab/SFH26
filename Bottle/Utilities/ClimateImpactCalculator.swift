@@ -132,7 +132,7 @@ struct ClimateImpact: Codable {
     
     // Short version for social sharing
     var shareText: String {
-        "I've saved \(String(format: "%.1f", co2SavedKg))kg of CO₂ by recycling \(bottles) bottles with @BottleApp! 🌍♻️"
+        "I've saved \(String(format: "%.1f", co2SavedKg))kg of CO₂ by recycling \(bottles) bottles with @BOTTLR! 🌍♻️"
     }
 }
 

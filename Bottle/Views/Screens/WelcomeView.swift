@@ -16,8 +16,8 @@ struct WelcomeView: View {
     let pages: [(icon: String, title: String, subtitle: String, color: String)] = [
         (
             icon: "waterbottle.fill",
-            title: "Flip Bottles Into Cash",
-            subtitle: "$50 average per pickup. Make money while saving the planet.",
+            title: "BOTTLR: Bottles Into Cash",
+            subtitle: "Coordinate bottle pickups fast and keep recyclable material out of landfill.",
             color: "00C853"
         ),
         (
@@ -28,8 +28,8 @@ struct WelcomeView: View {
         ),
         (
             icon: "dollarsign.circle.fill",
-            title: "Get Paid Instantly",
-            subtitle: "Track your earnings in real-time. $179 average per week for collectors.",
+            title: "Track Verified Drop-Offs",
+            subtitle: "Monitor completed pickups and estimated redemption value at local recycling centers.",
             color: "FF6B35"
         ),
         (

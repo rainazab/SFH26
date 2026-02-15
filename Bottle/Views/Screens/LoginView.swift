@@ -11,16 +11,15 @@ struct LoginView: View {
     @EnvironmentObject var authService: AuthService
     
     enum Field {
-        case email
-        case password
+        case phone
+        case code
     }
     
-    @State private var email = ""
-    @State private var password = ""
+    @State private var phoneNumber = ""
+    @State private var verificationCode = ""
+    @State private var codeSent = false
     @State private var isLoading = false
     @State private var showingError = false
-    @State private var showingSignUp = false
-    @State private var showingForgotPassword = false
     @FocusState private var focusedField: Field?
     
     var body: some View {
@@ -45,11 +44,11 @@ struct LoginView: View {
                                 .scaledToFit()
                                 .frame(width: 140, height: 140)
                             
-                            Text("BOTTLE")
+                            Text("BOTTLR")
                                 .font(.system(size: 40, weight: .bold))
                                 .foregroundColor(.white)
                             
-                            Text("Turn bottles into cash")
+                            Text("Connect neighbors to recycle bottles")
                                 .font(.title3)
                                 .foregroundColor(.white.opacity(0.95))
                         }
@@ -70,52 +69,47 @@ struct LoginView: View {
                             .cornerRadius(10)
                         }
                         
-                        // Login form
+                        // Login form (Phone + OTP)
                         VStack(spacing: 16) {
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Email")
+                                Text("Phone Number")
                                     .font(.subheadline)
                                     .fontWeight(.medium)
                                     .foregroundColor(.white.opacity(0.8))
                                 
-                                TextField("", text: $email)
+                                TextField("+1 555 123 4567", text: $phoneNumber)
                                     .textFieldStyle(CustomTextFieldStyle())
-                                    .textInputAutocapitalization(.never)
-                                    .keyboardType(.emailAddress)
-                                    .focused($focusedField, equals: .email)
+                                    .keyboardType(.phonePad)
+                                    .focused($focusedField, equals: .phone)
                             }
                             
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Password")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.white.opacity(0.8))
-                                
-                                SecureField("", text: $password)
-                                    .textFieldStyle(CustomTextFieldStyle())
-                                    .focused($focusedField, equals: .password)
+                            if codeSent {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Verification Code")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.white.opacity(0.8))
+                                    
+                                    TextField("123456", text: $verificationCode)
+                                        .textFieldStyle(CustomTextFieldStyle())
+                                        .keyboardType(.numberPad)
+                                        .focused($focusedField, equals: .code)
+                                }
                             }
                             
-                            Button("Forgot Password?") {
-                                showingForgotPassword = true
-                            }
-                            .font(.subheadline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                            
-                            Button(action: handleLogin) {
+                            Button(action: codeSent ? handleVerifyCode : handleSendCode) {
                                 HStack {
                                     if isLoading {
                                         ProgressView()
                                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                                     } else {
-                                        Text("Sign In")
+                                        Text(codeSent ? "Verify & Sign In" : "Send Verification Code")
                                             .font(.headline)
                                     }
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color.white.opacity((isLoading || email.isEmpty || password.isEmpty) ? 0.1 : 0.25))
+                                .background(Color.white.opacity(isPrimaryActionDisabled ? 0.1 : 0.25))
                                 .foregroundColor(.white)
                                 .cornerRadius(15)
                                 .overlay(
@@ -123,8 +117,8 @@ struct LoginView: View {
                                         .stroke(Color.white.opacity(0.3), lineWidth: 1)
                                 )
                             }
-                            .disabled(isLoading || email.isEmpty || password.isEmpty)
-                            .opacity((isLoading || email.isEmpty || password.isEmpty) ? 0.5 : 1.0)
+                            .disabled(isPrimaryActionDisabled)
+                            .opacity(isPrimaryActionDisabled ? 0.5 : 1.0)
                             .padding(.top, 4)
                             
                             HStack {
@@ -147,21 +141,6 @@ struct LoginView: View {
                                 handleGoogleSignIn()
                             }
                             .disabled(isLoading)
-                        }
-                        
-                        VStack(spacing: 12) {
-                            Text("Don't have an account?")
-                                .foregroundColor(.white.opacity(0.8))
-                            
-                            Button("Create Account") {
-                                showingSignUp = true
-                            }
-                            .font(.headline)
-                            .padding(.horizontal, 40)
-                            .padding(.vertical, 12)
-                            .background(Color.white)
-                            .foregroundColor(.brandGreen)
-                            .cornerRadius(25)
                         }
                         
                         Spacer(minLength: 16)
@@ -192,23 +171,77 @@ struct LoginView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingSignUp) {
-            SignUpView()
-                .environmentObject(authService)
-        }
-        .sheet(isPresented: $showingForgotPassword) {
-            ForgotPasswordView()
-                .environmentObject(authService)
-        }
     }
     
-    private func handleLogin() {
+    private var isPrimaryActionDisabled: Bool {
+        if codeSent {
+            return isLoading || verificationCode.trimmingCharacters(in: .whitespacesAndNewlines).count < 6
+        }
+        return isLoading || normalizedPhoneNumber() == nil
+    }
+    
+    private func normalizedPhoneNumber() -> String? {
+        let raw = phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        if raw.isEmpty { return nil }
+
+        let digits = raw.filter(\.isNumber)
+        guard digits.count >= 10 && digits.count <= 15 else { return nil }
+
+        if raw.hasPrefix("+") {
+            return "+\(digits)"
+        }
+
+        if digits.count == 10 { return "+1\(digits)" }
+        return "+\(digits)"
+    }
+
+    private func rootViewController() -> UIViewController? {
+        let scenes = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+        let keyWindow = scenes
+            .flatMap { $0.windows }
+            .first(where: \.isKeyWindow)
+        return keyWindow?.rootViewController
+    }
+
+    private func presentLocalError(_ message: String) {
+        authService.errorMessage = message
+        showingError = true
+    }
+
+    private func isCancelledSignInError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain.contains("GIDSignIn") && nsError.code == -5
+    }
+    
+    private func handleSendCode() {
+        guard let e164 = normalizedPhoneNumber() else {
+            presentLocalError("Enter a valid phone number with country code (e.g. +1 555 123 4567).")
+            return
+        }
+
         isLoading = true
         focusedField = nil
         
         Task {
             do {
-                try await authService.signIn(email: email, password: password)
+                try await authService.sendPhoneVerification(to: e164)
+                codeSent = true
+                focusedField = .code
+            } catch {
+                showingError = true
+            }
+            isLoading = false
+        }
+    }
+    
+    private func handleVerifyCode() {
+        isLoading = true
+        focusedField = nil
+        
+        Task {
+            do {
+                try await authService.signInWithPhoneCode(verificationCode)
             } catch {
                 showingError = true
             }
@@ -222,15 +255,15 @@ struct LoginView: View {
         
         Task {
             do {
-                // Get the root view controller
-                guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                      let rootViewController = windowScene.windows.first?.rootViewController else {
+                guard let rootViewController = rootViewController() else {
                     throw AppError.authentication("Unable to get view controller")
                 }
                 
                 try await authService.signInWithGoogle(presenting: rootViewController)
             } catch {
-                showingError = true
+                if !isCancelledSignInError(error) {
+                    showingError = true
+                }
             }
             isLoading = false
         }
@@ -565,8 +598,10 @@ struct GoogleSignInButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Image(systemName: "g.circle.fill")
-                    .font(.system(size: 24))
+                Image("google-logo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 22, height: 22)
                 
                 Text("Continue with Google")
                     .font(.headline)

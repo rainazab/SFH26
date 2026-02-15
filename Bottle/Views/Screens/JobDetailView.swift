@@ -11,7 +11,11 @@ import MapKit
 struct JobDetailView: View {
     let job: BottleJob
     @Environment(\.dismiss) var dismiss
+    @StateObject private var mockData = MockDataService.shared
     @State private var showingClaimSuccess = false
+    @State private var showingError = false
+    @State private var errorMessage = ""
+    @State private var isClaiming = false
     
     var body: some View {
         NavigationView {
@@ -53,10 +57,10 @@ struct JobDetailView: View {
                         
                         Divider()
                         
-                        // Payout & Bottles
+                        // Estimated value & bottles
                         HStack(spacing: 30) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("PAYOUT")
+                                Text("EST. VALUE")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                 Text("$\(String(format: "%.0f", job.payout))")
@@ -137,11 +141,16 @@ struct JobDetailView: View {
                         // Action Buttons
                         VStack(spacing: 12) {
                             Button(action: {
-                                showingClaimSuccess = true
+                                claimJob()
                             }) {
                                 HStack {
-                                    Image(systemName: "checkmark.circle.fill")
-                                    Text("Claim This Job")
+                                    if isClaiming {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    } else {
+                                        Image(systemName: "checkmark.circle.fill")
+                                    }
+                                    Text(isClaiming ? "Claiming..." : "Claim This Job")
                                         .fontWeight(.semibold)
                                 }
                                 .frame(maxWidth: .infinity)
@@ -150,8 +159,11 @@ struct JobDetailView: View {
                                 .foregroundColor(.white)
                                 .cornerRadius(15)
                             }
+                            .disabled(isClaiming || !mockData.canClaimNewJob)
                             
-                            Button(action: {}) {
+                            Button(action: {
+                                mockData.startNavigation(to: job)
+                            }) {
                                 HStack {
                                     Image(systemName: "location.fill")
                                     Text("Navigate There")
@@ -176,6 +188,7 @@ struct JobDetailView: View {
                                 .foregroundColor(.primary)
                                 .cornerRadius(15)
                             }
+                            .disabled(true)
                         }
                         .padding(.top)
                     }
@@ -201,7 +214,12 @@ struct JobDetailView: View {
                 dismiss()
             }
         } message: {
-            Text("You've successfully claimed this pickup. Check your Activity tab for details.")
+            Text("Pickup claimed. Coordinate handoff and verify in the Activity tab.")
+        }
+        .alert("Unable to Claim", isPresented: $showingError) {
+            Button("OK") { }
+        } message: {
+            Text(errorMessage)
         }
     }
     
@@ -210,6 +228,25 @@ struct JobDetailView: View {
         case .residential: return Color(hex: "4CAF50")
         case .bulk: return Color(hex: "2196F3")
         case .commercial: return Color(hex: "9C27B0")
+        }
+    }
+
+    private func claimJob() {
+        isClaiming = true
+        Task {
+            do {
+                try await mockData.claimJob(job)
+                await MainActor.run {
+                    isClaiming = false
+                    showingClaimSuccess = true
+                }
+            } catch {
+                await MainActor.run {
+                    isClaiming = false
+                    errorMessage = error.localizedDescription
+                    showingError = true
+                }
+            }
         }
     }
 }

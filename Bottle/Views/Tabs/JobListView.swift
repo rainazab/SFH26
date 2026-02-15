@@ -8,30 +8,38 @@
 import SwiftUI
 
 struct JobListView: View {
+    @StateObject private var mockData = MockDataService.shared
     @State private var searchText = ""
     @State private var selectedTier: JobTier? = nil
     @State private var showingFilters = false
-    @State private var minPayout = 0.0
+    @State private var minEstimatedValue = 0.0
     @State private var maxDistance = 10.0
     @State private var selectedJob: BottleJob?
     @State private var showingJobDetail = false
     @Environment(\.colorScheme) var colorScheme
     
-    let jobs = SampleData.shared.jobs
-    
     var filteredJobs: [BottleJob] {
-        jobs.filter { job in
+        mockData.availableJobs.filter { job in
             (selectedTier == nil || job.tier == selectedTier) &&
-            job.payout >= minPayout &&
+            job.payout >= minEstimatedValue &&
             (job.distance ?? 0) <= maxDistance &&
             (searchText.isEmpty || job.title.localizedCaseInsensitiveContains(searchText))
         }
-        .sorted { $0.payout > $1.payout }
+        .sorted { ($0.distance ?? 999) < ($1.distance ?? 999) }
     }
     
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
+                if mockData.hasActiveJob {
+                    Text("Complete your current pickup before claiming another job.")
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color.orange)
+                }
+
                 // Stats Header
                 HStack(spacing: 20) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -46,7 +54,7 @@ struct JobListView: View {
                     Spacer()
                     
                     VStack(alignment: .trailing, spacing: 4) {
-                        Text("Total Payout")
+                        Text("Est. Value")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Text("$\(Int(filteredJobs.reduce(0) { $0 + $1.payout }))")
@@ -115,7 +123,14 @@ struct JobListView: View {
                 ScrollView {
                     LazyVStack(spacing: 12) {
                         ForEach(filteredJobs) { job in
-                            JobCard(job: job)
+                            JobCard(
+                                job: job,
+                                canClaim: mockData.canClaimNewJob
+                            ) {
+                                Task {
+                                    try? await mockData.claimJob(job)
+                                }
+                            }
                                 .onTapGesture {
                                     selectedJob = job
                                     showingJobDetail = true
@@ -128,7 +143,7 @@ struct JobListView: View {
             .navigationTitle("Jobs")
             .searchable(text: $searchText, prompt: "Search jobs...")
             .sheet(isPresented: $showingFilters) {
-                FiltersView(minPayout: $minPayout, maxDistance: $maxDistance)
+                FiltersView(minEstimatedValue: $minEstimatedValue, maxDistance: $maxDistance)
             }
             .sheet(isPresented: $showingJobDetail) {
                 if let job = selectedJob {
@@ -141,8 +156,11 @@ struct JobListView: View {
 
 struct JobCard: View {
     let job: BottleJob
+    let canClaim: Bool
+    let onClaim: () -> Void
     
     var body: some View {
+            VStack(spacing: 12) {
             HStack(spacing: 16) {
                 // Icon
                 ZStack {
@@ -190,16 +208,29 @@ struct JobCard: View {
                 
                 Spacer()
                 
-                // Payout
+                // Estimated redemption value
                 VStack(spacing: 4) {
                     Text("$\(Int(job.payout))")
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundColor(Color(hex: "00C853"))
-                    Text("payout")
+                    Text("est. value")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
+            }
+            
+            Button(action: onClaim) {
+                Text("Claim Job")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(canClaim ? Color.brandGreen : Color.gray)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+            }
+            .disabled(!canClaim)
             }
             .padding()
             .background(Color(.systemBackground))
@@ -237,18 +268,18 @@ struct FilterPill: View {
 }
 
 struct FiltersView: View {
-    @Binding var minPayout: Double
+    @Binding var minEstimatedValue: Double
     @Binding var maxDistance: Double
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
         NavigationView {
             Form {
-                Section("Minimum Payout") {
+                Section("Minimum Estimated Value") {
                     HStack {
-                        Text("$\(Int(minPayout))")
+                        Text("$\(Int(minEstimatedValue))")
                             .fontWeight(.semibold)
-                        Slider(value: $minPayout, in: 0...100, step: 5)
+                        Slider(value: $minEstimatedValue, in: 0...100, step: 5)
                     }
                 }
                 
@@ -262,7 +293,7 @@ struct FiltersView: View {
                 
                 Section {
                     Button("Reset Filters") {
-                        minPayout = 0
+                        minEstimatedValue = 0
                         maxDistance = 10
                     }
                 }

@@ -18,8 +18,10 @@ class AuthService: ObservableObject {
     @Published var currentUser: UserProfile?
     @Published var isLoading = true
     @Published var errorMessage: String?
+    @Published var shouldPromptRoleSelection = false
     
     private var authStateListener: AuthStateDidChangeListenerHandle?
+    private var verificationID: String?
     
     init() {
         setupAuthListener()
@@ -53,7 +55,6 @@ class AuthService: ObservableObject {
         name: String,
         userType: UserType
     ) async throws {
-        isLoading = true
         errorMessage = nil
         
         do {
@@ -64,13 +65,10 @@ class AuthService: ObservableObject {
             errorMessage = error.localizedDescription
             throw AppError.authentication(error.localizedDescription)
         }
-        
-        isLoading = false
     }
     
     // MARK: - Sign In
     func signIn(email: String, password: String) async throws {
-        isLoading = true
         errorMessage = nil
         
         do {
@@ -81,13 +79,47 @@ class AuthService: ObservableObject {
             errorMessage = error.localizedDescription
             throw AppError.authentication(error.localizedDescription)
         }
+    }
+    
+    // MARK: - Phone Auth
+    func sendPhoneVerification(to phoneNumber: String) async throws {
+        errorMessage = nil
         
-        isLoading = false
+        do {
+            verificationID = try await PhoneAuthProvider.provider().verifyPhoneNumber(phoneNumber, uiDelegate: nil)
+        } catch {
+            errorMessage = error.localizedDescription
+            throw AppError.authentication(error.localizedDescription)
+        }
+    }
+    
+    func signInWithPhoneCode(_ code: String) async throws {
+        guard let verificationID else {
+            throw AppError.authentication("Request a verification code first")
+        }
+        
+        errorMessage = nil
+        
+        do {
+            let credential = PhoneAuthProvider.provider().credential(
+                withVerificationID: verificationID,
+                verificationCode: code
+            )
+            let authResult = try await Auth.auth().signIn(with: credential)
+            createMockProfile(
+                for: authResult.user,
+                name: authResult.user.phoneNumber ?? "User",
+                type: .collector
+            )
+            isAuthenticated = true
+        } catch {
+            errorMessage = error.localizedDescription
+            throw AppError.authentication(error.localizedDescription)
+        }
     }
     
     // MARK: - Google Sign In
     func signInWithGoogle(presenting viewController: UIViewController) async throws {
-        isLoading = true
         errorMessage = nil
         
         do {
@@ -117,13 +149,38 @@ class AuthService: ObservableObject {
                 name: user.profile?.name ?? "User",
                 type: .collector
             )
+            shouldPromptRoleSelection = true
             isAuthenticated = true
         } catch {
+            let nsError = error as NSError
+            // Treat cancel as a normal user action, not an error.
+            if nsError.domain.contains("GIDSignIn") && nsError.code == -5 {
+                errorMessage = nil
+                return
+            }
             errorMessage = error.localizedDescription
             throw AppError.authentication(error.localizedDescription)
         }
-        
-        isLoading = false
+    }
+
+    func setCurrentUserType(_ type: UserType) {
+        guard var user = currentUser else { return }
+        user = UserProfile(
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            type: type,
+            rating: user.rating,
+            totalBottles: user.totalBottles,
+            totalEarnings: user.totalEarnings,
+            joinDate: user.joinDate,
+            badges: user.badges,
+            fcmToken: user.fcmToken,
+            profilePhotoUrl: user.profilePhotoUrl
+        )
+        currentUser = user
+        MockDataService.shared.syncAuthenticatedUser(user)
+        shouldPromptRoleSelection = false
     }
     
     // MARK: - Sign Out
@@ -132,6 +189,7 @@ class AuthService: ObservableObject {
             try Auth.auth().signOut()
             currentUser = nil
             isAuthenticated = false
+            verificationID = nil
         } catch {
             throw AppError.authentication(error.localizedDescription)
         }
@@ -163,7 +221,7 @@ class AuthService: ObservableObject {
     
     // MARK: - Mock Profile (Hackathon Demo)
     private func createMockProfile(for user: User, name: String? = nil, type: UserType = .collector) {
-        currentUser = UserProfile(
+        let profile = UserProfile(
             id: user.uid,
             name: name ?? user.displayName ?? user.email?.components(separatedBy: "@").first ?? "User",
             email: user.email ?? "",
@@ -174,5 +232,8 @@ class AuthService: ObservableObject {
             joinDate: Date().addingTimeInterval(-60*60*24*90),
             badges: Badge.mockBadges
         )
+        currentUser = profile
+        // Keep demo/user-switch state aligned with actual signed-in identity.
+        MockDataService.shared.syncAuthenticatedUser(profile)
     }
 }

@@ -1,0 +1,208 @@
+//
+//  CompletePickupView.swift
+//  Bottle
+//
+//  Complete a claimed pickup with optional Gemini AI count
+//
+
+import SwiftUI
+import PhotosUI
+import UIKit
+
+struct CompletePickupView: View {
+    @Environment(\.dismiss) var dismiss
+    @StateObject private var mockData = MockDataService.shared
+    
+    let job: BottleJob
+    
+    @State private var bottleCount: String = ""
+    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var photoImage: UIImage?
+    
+    @State private var isSubmitting = false
+    @State private var showError = false
+    @State private var errorMessage = ""
+    
+    @State private var aiCount: Int?
+    @State private var aiConfidence: Int?
+    @State private var aiNotes: String?
+    @State private var isCountingWithAI = false
+    
+    private let geminiService = GeminiService()
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(job.title).font(.headline)
+                        Text(job.address).font(.caption).foregroundColor(.secondary)
+                        Text("Estimated redemption value: $\(String(format: "%.2f", job.payout))")
+                            .font(.subheadline)
+                            .foregroundColor(.brandGreen)
+                        Text("Value is redeemed at local recycling centers, not paid through BOTTLR.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(12)
+                    
+                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(.secondarySystemBackground))
+                                .frame(height: 220)
+                            if let photoImage {
+                                Image(uiImage: photoImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(height: 220)
+                                    .frame(maxWidth: .infinity)
+                                    .clipped()
+                                    .cornerRadius(12)
+                            } else {
+                                Label("Upload pickup photo", systemImage: "camera.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .onChange(of: selectedPhoto) { _, newValue in
+                        Task {
+                            if let data = try? await newValue?.loadTransferable(type: Data.self),
+                               let image = UIImage(data: data) {
+                                photoImage = image
+                                await runAICount(image)
+                            }
+                        }
+                    }
+                    
+                    if let aiCount, let aiConfidence {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("AI Detected: \(aiCount) bottles (\(aiConfidence)% confidence)")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            if let aiNotes {
+                                Text(aiNotes)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Button("Use AI Count") { bottleCount = String(aiCount) }
+                                .font(.caption)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                        .background(Color.purple.opacity(0.1))
+                        .cornerRadius(12)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Bottle Count")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        TextField("Enter collected bottles", text: $bottleCount)
+                            .keyboardType(.numberPad)
+                            .padding()
+                            .background(Color(.secondarySystemBackground))
+                            .cornerRadius(10)
+                    }
+                    
+                    Button(action: complete) {
+                        HStack {
+                            if isSubmitting || isCountingWithAI {
+                                ProgressView().progressViewStyle(.circular)
+                            } else {
+                                Image(systemName: "checkmark.circle.fill")
+                                Text("Verify Pickup")
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(canSubmit ? Color.brandGreen : Color.gray)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                    }
+                    .disabled(!canSubmit)
+
+                    Button(action: {
+                        mockData.openNearbyRecyclingCenters()
+                    }) {
+                        HStack {
+                            Image(systemName: "map.fill")
+                            Text("Find Nearby Recycling Centers")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue.opacity(0.15))
+                        .foregroundColor(.blue)
+                        .cornerRadius(12)
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Verify Pickup")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+            .alert("Error", isPresented: $showError) {
+                Button("OK") {}
+            } message: {
+                Text(errorMessage)
+            }
+            .onAppear { bottleCount = "\(job.bottleCount)" }
+        }
+    }
+    
+    private var canSubmit: Bool {
+        !isSubmitting &&
+        photoImage != nil &&
+        (Int(bottleCount) ?? 0) > 0
+    }
+    
+    private func runAICount(_ image: UIImage) async {
+        isCountingWithAI = true
+        defer { isCountingWithAI = false }
+        do {
+            let result = try await geminiService.countBottles(from: image)
+            aiCount = result.count
+            aiConfidence = result.confidence
+            aiNotes = result.notes
+            if result.confidence >= 80 {
+                bottleCount = "\(result.count)"
+            }
+        } catch {
+            // AI optional in demo flow
+        }
+    }
+    
+    private func complete() {
+        guard let count = Int(bottleCount), count > 0 else {
+            errorMessage = "Enter a valid bottle count."
+            showError = true
+            return
+        }
+        
+        isSubmitting = true
+        Task {
+            do {
+                try await mockData.completeJob(job, bottleCount: count, aiVerified: aiCount != nil)
+                isSubmitting = false
+                dismiss()
+            } catch {
+                isSubmitting = false
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
+    }
+}
+
+#Preview {
+    CompletePickupView(job: BottleJob.mockJobs[0])
+}

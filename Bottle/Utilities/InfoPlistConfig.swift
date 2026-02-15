@@ -6,16 +6,16 @@
 /*
 
 <key>NSLocationWhenInUseUsageDescription</key>
-<string>Flip needs your location to show nearby bottle collection jobs and help you navigate to pickup locations.</string>
+<string>BOTTLR needs your location to show nearby bottle collection jobs and help you navigate to pickup locations.</string>
 
 <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-<string>Flip uses your location to notify you about new bottle collection opportunities nearby.</string>
+<string>BOTTLR uses your location to notify you about new bottle collection opportunities nearby.</string>
 
 <key>CFBundleDisplayName</key>
-<string>Flip</string>
+<string>BOTTLR</string>
 
 <key>CFBundleName</key>
-<string>Flip</string>
+<string>BOTTLR</string>
 
 <key>UILaunchScreen</key>
 <dict>
