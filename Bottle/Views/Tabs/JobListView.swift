@@ -202,6 +202,9 @@ struct JobListView: View {
                 }
             }
             .navigationTitle("Posts")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color(.systemGray6), for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .searchable(text: $searchText, prompt: "Search posts...")
             .sheet(isPresented: $showingFilters) {
                 FiltersView(minBottleCount: $minBottleCount, maxDistance: $maxDistance)
@@ -324,9 +327,8 @@ struct JobCard: View {
                     }
                     
                     HStack(spacing: 6) {
-                        InfoChip(text: "\(job.bottleCount) bottles")
-                        InfoChip(text: String(format: "%.1f mi", job.distance ?? 0))
-                        InfoChip(text: String(format: "%.1f ★", job.donorRating))
+                        InfoChip(icon: "cylinder.fill", text: "\(job.bottleCount)")
+                        InfoChip(icon: "location.fill", text: String(format: "%.1f mi", job.distance ?? 0))
                     }
                     
                     Text(job.availableTime)
@@ -403,18 +405,23 @@ struct JobCard: View {
 }
 
 struct InfoChip: View {
+    let icon: String
     let text: String
 
     var body: some View {
-        Text(text)
-            .font(.caption2)
-            .foregroundColor(.secondary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.75)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color(.systemGray6))
-            .cornerRadius(7)
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2)
+            Text(text)
+                .font(.caption2)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .foregroundColor(.secondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color(.systemGray6))
+        .cornerRadius(7)
     }
 }
 
