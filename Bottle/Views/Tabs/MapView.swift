@@ -44,6 +44,18 @@ struct MapView: View {
         let count = max(1, dataService.latestNearbyPostCount)
         return count == 1 ? "New post nearby!" : "\(count) new posts nearby!"
     }
+
+    private var completedCount: String {
+        "\(dataService.completedJobs.count)"
+    }
+
+    private var pendingCount: String {
+        "\(dataService.myClaimedJobs.count)"
+    }
+
+    private var currentRating: String {
+        String(format: "%.1f", dataService.currentUser?.rating ?? 0)
+    }
     
     var body: some View {
         ZStack {
@@ -209,9 +221,9 @@ struct MapView: View {
                         
                         // Quick Stats
                         HStack(spacing: 20) {
-                            StatBadge(icon: "checkmark.circle.fill", value: "8", label: "Completed")
-                            StatBadge(icon: "clock.fill", value: "3", label: "Pending")
-                            StatBadge(icon: "arrow.up.circle.fill", value: "4.8", label: "Rating")
+                            StatBadge(icon: "checkmark.circle.fill", value: completedCount, label: "Completed")
+                            StatBadge(icon: "clock.fill", value: pendingCount, label: "Pending")
+                            StatBadge(icon: "arrow.up.circle.fill", value: currentRating, label: "Rating")
                         }
                     }
                 }

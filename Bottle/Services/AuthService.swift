@@ -246,7 +246,8 @@ class AuthService: ObservableObject {
                 ?? (data["totalBottles"] as? Int)
                 ?? (data["totalBottles"] as? NSNumber)?.intValue
                 ?? 0
-            let joinDate = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date().addingTimeInterval(-60 * 60 * 24 * 90)
+            let joinDate = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+            let persistedRating = (data["rating"] as? Double) ?? (data["rating"] as? NSNumber)?.doubleValue ?? 0
             let profilePhotoReference = (data["profilePhotoPath"] as? String)
                 ?? (data["profilePhotoUrl"] as? String)
                 ?? (data["profilePhotoBase64"] as? String)
@@ -256,7 +257,7 @@ class AuthService: ObservableObject {
                 name: (name?.isEmpty == false ? name! : (firebaseUser.displayName ?? "User")),
                 email: email,
                 type: role,
-                rating: 4.8,
+                rating: persistedRating,
                 totalBottles: totalBottles,
                 totalEarnings: totalEarnings,
                 joinDate: joinDate,
@@ -327,10 +328,10 @@ class AuthService: ObservableObject {
             name: user.displayName ?? user.email?.components(separatedBy: "@").first ?? "User",
             email: user.email ?? "",
             type: type,
-            rating: 4.8,
+            rating: 0,
             totalBottles: 0,
             totalEarnings: 0,
-            joinDate: Date().addingTimeInterval(-60 * 60 * 24 * 90),
+            joinDate: Date(),
             badges: Badge.mockBadges
         )
     }

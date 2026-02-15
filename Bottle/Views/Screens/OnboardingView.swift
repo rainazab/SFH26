@@ -77,10 +77,15 @@ struct OnboardingView: View {
                     .padding(.horizontal)
                 } else {
                     Spacer(minLength: 10)
-                    Image("logo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 110, height: 110)
+                    ZStack {
+                        Circle()
+                            .fill(Color.brandBlueLight.opacity(0.28))
+                            .frame(width: 132, height: 132)
+                        Image("logo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 110, height: 110)
+                    }
                     
                     Text("Choose your role")
                         .font(.title2)

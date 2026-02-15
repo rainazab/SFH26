@@ -139,50 +139,90 @@ struct CollectorJobsView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if showCollectorTip {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "sparkles")
-                        .foregroundColor(.brandGreen)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Quick guide")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("Browse posts on the map or list, claim one, then verify pickup with a photo.")
-                            .font(.subheadline)
-                    }
-                    Spacer()
-                    Button {
-                        showCollectorTip = false
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .padding(12)
-                .background(Color(.secondarySystemBackground))
-                .cornerRadius(10)
-                .padding(.horizontal)
-                .padding(.top, 8)
-            }
-
-            Picker("View", selection: $mode) {
-                ForEach(JobsMode.allCases, id: \.self) { option in
-                    Text(option.rawValue).tag(option)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.top, 8)
-
+        Group {
             if mode == .map {
-                MapView(onShowList: {
-                    mode = .list
-                })
+                ZStack(alignment: .top) {
+                    MapView(onShowList: {
+                        mode = .list
+                    })
                     .environmentObject(locationService)
+
+                    VStack(spacing: 8) {
+                        if showCollectorTip {
+                            HStack(alignment: .top, spacing: 10) {
+                                Image(systemName: "sparkles")
+                                    .foregroundColor(.brandGreen)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Quick guide")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text("Browse posts on the map or list, claim one, then verify pickup with a photo.")
+                                        .font(.subheadline)
+                                }
+                                Spacer()
+                                Button {
+                                    showCollectorTip = false
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .padding(12)
+                            .background(Color(.secondarySystemBackground))
+                            .cornerRadius(10)
+                            .padding(.horizontal)
+                        }
+
+                        Picker("View", selection: $mode) {
+                            ForEach(JobsMode.allCases, id: \.self) { option in
+                                Text(option.rawValue).tag(option)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal)
+                    }
+                    .padding(.top, 8)
+                }
             } else {
-                JobListView()
-                    .environmentObject(locationService)
+                VStack(spacing: 0) {
+                    if showCollectorTip {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "sparkles")
+                                .foregroundColor(.brandGreen)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Quick guide")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text("Browse posts on the map or list, claim one, then verify pickup with a photo.")
+                                    .font(.subheadline)
+                            }
+                            Spacer()
+                            Button {
+                                showCollectorTip = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(12)
+                        .background(Color(.secondarySystemBackground))
+                        .cornerRadius(10)
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                    }
+
+                    Picker("View", selection: $mode) {
+                        ForEach(JobsMode.allCases, id: \.self) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+
+                    JobListView()
+                        .environmentObject(locationService)
+                }
             }
         }
         .onAppear {

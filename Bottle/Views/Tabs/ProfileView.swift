@@ -21,6 +21,10 @@ struct ProfileView: View {
     private var profile: UserProfile {
         dataService.currentUser ?? UserProfile.mockCollector
     }
+
+    private var hasReliabilityData: Bool {
+        profile.reviewCount > 0 || !dataService.completedJobs.isEmpty
+    }
     
     var body: some View {
         NavigationView {
@@ -72,20 +76,26 @@ struct ProfileView: View {
                                 .fontWeight(.bold)
                             
                             HStack(spacing: 4) {
-                                ForEach(0..<5) { index in
-                                    Image(systemName: index < Int(profile.rating) ? "star.fill" : "star")
-                                        .foregroundColor(.yellow)
+                                if max(profile.reviewCount, dataService.completedJobs.count) == 0 {
+                                    Text("No ratings yet")
                                         .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                } else {
+                                    ForEach(0..<5) { index in
+                                        Image(systemName: index < Int(profile.rating) ? "star.fill" : "star")
+                                            .foregroundColor(.yellow)
+                                            .font(.subheadline)
+                                    }
+                                    Text(String(format: "%.1f", profile.rating))
+                                        .font(.headline)
+                                        .foregroundColor(.secondary)
+                                    Text("(\(max(profile.reviewCount, dataService.completedJobs.count)) reviews)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
                                 }
-                                Text(String(format: "%.1f", profile.rating))
-                                    .font(.headline)
-                                    .foregroundColor(.secondary)
-                                Text("(\(max(profile.reviewCount, dataService.completedJobs.count)) reviews)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
                             }
                             .accessibilityElement(children: .ignore)
-                            .accessibilityLabel("Rating \(String(format: "%.1f", profile.rating)) out of 5 stars")
+                            .accessibilityLabel(max(profile.reviewCount, dataService.completedJobs.count) == 0 ? "No ratings yet" : "Rating \(String(format: "%.1f", profile.rating)) out of 5 stars")
                             
                             Text("Member since \(profile.joinDate.formatted(date: .abbreviated, time: .omitted))")
                                 .font(.caption)
@@ -95,13 +105,19 @@ struct ProfileView: View {
                                 .font(.caption)
                                 .foregroundColor(.brandBlueLight)
 
-                            HStack(spacing: 10) {
-                                Label("\(Int(profile.reliabilityScore))% reliable", systemImage: "checkmark.shield.fill")
+                            if hasReliabilityData {
+                                HStack(spacing: 10) {
+                                    Label("\(Int(profile.reliabilityScore))% reliable", systemImage: "checkmark.shield.fill")
+                                        .font(.caption2)
+                                        .foregroundColor(.brandGreen)
+                                    Label("\(Int(profile.onTimeRate))% on-time", systemImage: "clock.badge.checkmark")
+                                        .font(.caption2)
+                                        .foregroundColor(.brandBlueLight)
+                                }
+                            } else {
+                                Text("Reliability data appears after your first completed pickup.")
                                     .font(.caption2)
-                                    .foregroundColor(.brandGreen)
-                                Label("\(Int(profile.onTimeRate))% on-time", systemImage: "clock.badge.checkmark")
-                                    .font(.caption2)
-                                    .foregroundColor(.brandBlueLight)
+                                    .foregroundColor(.secondary)
                             }
                             HStack(spacing: 10) {
                                 Text("Cancellations: \(profile.cancellationCount)")
@@ -117,7 +133,6 @@ struct ProfileView: View {
                         HStack(spacing: 20) {
                             ProfileStatPill(value: "\(profile.totalBottles)", label: "Bottles")
                             ProfileStatPill(value: "\(String(format: "%.1f", ClimateImpactCalculator.co2Saved(bottles: profile.totalBottles)))kg", label: "CO₂ Saved")
-                            ProfileStatPill(value: "\(profile.badges.count)", label: "Impact Badges")
                         }
                     }
                     .padding()
@@ -174,7 +189,13 @@ struct ProfileView: View {
                     
                     // Menu Items
                     VStack(spacing: 0) {
-                        ProfileMenuItem(icon: "person.fill", title: "Edit Profile", color: .brandGreen)
+                        NavigationLink {
+                            EditProfilePanel()
+                                .environmentObject(authService)
+                                .environmentObject(dataService)
+                        } label: {
+                            ProfileMenuRow(icon: "person.fill", title: "Edit Profile", color: .brandGreen)
+                        }
                         Divider().padding(.leading, 60)
                         NavigationLink {
                             NotificationSettingsPanel()
@@ -182,7 +203,11 @@ struct ProfileView: View {
                             ProfileMenuRow(icon: "bell.fill", title: "Notifications", color: Color(hex: "FF9800"))
                         }
                         Divider().padding(.leading, 60)
-                        ProfileMenuItem(icon: "gearshape.fill", title: "Settings", color: .gray)
+                        NavigationLink {
+                            SettingsPanel()
+                        } label: {
+                            ProfileMenuRow(icon: "gearshape.fill", title: "Settings", color: .gray)
+                        }
                     }
                     .background(Color(.systemBackground))
                     .cornerRadius(20)
@@ -198,45 +223,6 @@ struct ProfileView: View {
                     .padding(.horizontal)
                     #endif
                     
-                    // About Section
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("ABOUT bottlr")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        VStack(alignment: .leading, spacing: 12) {
-                            AboutRow(icon: "leaf.circle.fill", title: "Our Mission", description: "Connecting collectors with hosts to build a sustainable, dignified recycling network")
-                            Divider()
-                            AboutRow(icon: "heart.circle.fill", title: "Social Impact", description: "Supporting 150K+ collectors across California")
-                            Divider()
-                            AboutRow(icon: "info.circle.fill", title: "How It Works", description: "Hosts create posts, collectors claim collection points, everyone benefits")
-                        }
-                    }
-                    .padding()
-                    .background(Color(.systemBackground))
-                    .cornerRadius(20)
-                    .shadow(color: Color.black.opacity(0.05), radius: 8)
-                    .padding(.horizontal)
-                    
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Backend")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(dataService.backendStatus == "firestore" ? "Firestore live sync active" : "Local mode active")
-                            .font(.subheadline)
-                            .foregroundColor(dataService.backendStatus == "firestore" ? .green : .orange)
-                        if let syncError = dataService.lastSyncError {
-                            Text(syncError)
-                                .font(.caption2)
-                                .foregroundColor(.red)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-                    .background(Color(.systemBackground))
-                    .cornerRadius(12)
-                    .padding(.horizontal)
-
                     // App Info
                     VStack(spacing: 8) {
                         Button(action: {}) {
@@ -440,6 +426,17 @@ struct NotificationSettingsPanel: View {
                     refreshAuthorizationStatus()
                 }
             }
+
+            Section("FAQ") {
+                FAQRow(
+                    question: "Why am I not getting alerts?",
+                    answer: "Enable notifications in iOS Settings and keep \"New nearby posts\" turned on."
+                )
+                FAQRow(
+                    question: "What notifications will I get?",
+                    answer: "You can receive nearby post alerts and post update alerts (claimed/completed)."
+                )
+            }
         }
         .navigationTitle("Notifications")
         .onAppear {
@@ -469,18 +466,118 @@ struct NotificationSettingsPanel: View {
     }
 }
 
+struct EditProfilePanel: View {
+    @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var dataService: DataService
+    @State private var displayName: String = ""
+    @State private var showSaved = false
+
+    var body: some View {
+        Form {
+            Section("Profile") {
+                TextField("Display name", text: $displayName)
+                    .textInputAutocapitalization(.words)
+            }
+
+            Section {
+                Button("Save Changes") {
+                    let userType = dataService.currentUser?.type ?? .collector
+                    authService.completeOnboarding(name: displayName, userType: userType)
+                    showSaved = true
+                }
+                .disabled(displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+
+            Section("FAQ") {
+                FAQRow(
+                    question: "Can I change my role later?",
+                    answer: "Role changes are supported via account/profile flow and are persisted."
+                )
+                FAQRow(
+                    question: "Why update my display name?",
+                    answer: "Collectors and hosts see this name on posts and verification steps."
+                )
+            }
+        }
+        .navigationTitle("Edit Profile")
+        .onAppear {
+            displayName = dataService.currentUser?.name ?? ""
+        }
+        .alert("Saved", isPresented: $showSaved) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Your profile was updated.")
+        }
+    }
+}
+
+struct SettingsPanel: View {
+    @AppStorage("bottlr.settings.aiEnabled") private var aiEnabled = AppConfig.aiVerificationEnabled
+    @AppStorage("bottlr.settings.climateAnimations") private var climateAnimations = AppConfig.climateAnimationEnabled
+
+    var body: some View {
+        Form {
+            Section("App") {
+                Toggle("Enable AI Verification", isOn: $aiEnabled)
+                    .onChange(of: aiEnabled) { _, value in
+                        AppConfig.aiVerificationEnabled = value
+                    }
+                Toggle("Enable Climate Animations", isOn: $climateAnimations)
+                    .onChange(of: climateAnimations) { _, value in
+                        AppConfig.climateAnimationEnabled = value
+                    }
+            }
+
+            Section("System") {
+                Button("Open iOS App Settings") {
+                    guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                    UIApplication.shared.open(url)
+                }
+            }
+
+            Section("FAQ") {
+                FAQRow(
+                    question: "What does AI Verification do?",
+                    answer: "It uses image analysis to estimate bottle counts and materials before completion."
+                )
+                FAQRow(
+                    question: "Can I change settings later?",
+                    answer: "Yes, all toggles here are saved and can be updated anytime."
+                )
+            }
+        }
+        .navigationTitle("Settings")
+    }
+}
+
+struct FAQRow: View {
+    let question: String
+    let answer: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(question)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+            Text(answer)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
 struct AboutRow: View {
     let icon: String
     let title: String
     let description: String
-    
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
                 .font(.title2)
                 .foregroundColor(Color.brandGreen)
                 .frame(width: 30)
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.subheadline)
