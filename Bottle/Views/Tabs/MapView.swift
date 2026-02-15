@@ -25,7 +25,12 @@ struct MapView: View {
     @State private var showNewJobToast = false
     @State private var hasAutoFramed = false
 
-    private var jobs: [BottleJob] { dataService.availableJobs }
+    private var jobs: [BottleJob] {
+        if dataService.currentUser?.type == .collector {
+            return dataService.jobsAvailableForClaim
+        }
+        return dataService.availableJobs
+    }
     
     var nearestHighValueJob: BottleJob? {
         jobs.filter({ $0.estimatedValue > 30 }).min(by: { ($0.distance ?? 0) < ($1.distance ?? 0) })

@@ -20,8 +20,15 @@ struct JobListView: View {
     @State private var showingJobDetail = false
     @Environment(\.colorScheme) var colorScheme
     
+    private var baseJobs: [BottleJob] {
+        if dataService.currentUser?.type == .collector {
+            return dataService.jobsAvailableForClaim
+        }
+        return dataService.availableJobs
+    }
+
     var filteredJobs: [BottleJob] {
-        dataService.availableJobs.filter { job in
+        baseJobs.filter { job in
             (selectedTier == nil || job.tier == selectedTier) &&
             job.estimatedValue >= minEstimatedValue &&
             (job.distance ?? 0) <= maxDistance &&

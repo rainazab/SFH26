@@ -44,6 +44,15 @@ final class DataService: ObservableObject, DataServiceProtocol {
 
     var hasActiveJob: Bool { !myClaimedJobs.isEmpty }
     var canClaimNewJob: Bool { !hasActiveJob }
+    var jobsAvailableForClaim: [BottleJob] {
+        guard let user = currentUser else { return [] }
+        return availableJobs.filter { job in
+            job.status == .available &&
+            job.donorId != user.id &&
+            job.claimedBy == nil &&
+            ((job.expiresAt ?? Date.distantFuture) > Date())
+        }
+    }
 
     private let appState = MockDataService.shared
     private let notifications = AppNotificationService.shared
@@ -100,10 +109,12 @@ final class DataService: ObservableObject, DataServiceProtocol {
             observeLeaderboard()
             observeCityImpact()
         }
+        print("bottlr backend mode: \(backendStatus)")
         #else
         isFirestoreEnabled = false
         backendStatus = "local"
         bindFallbackState()
+        print("bottlr backend mode: \(backendStatus)")
         #endif
     }
 
