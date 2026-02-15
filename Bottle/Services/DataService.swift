@@ -980,7 +980,7 @@ private extension DataService {
                     bottleCount: post.bottleCount,
                     earnings: 0,
                     rating: Double(post.collectorRatingByHost ?? 5),
-                    review: "Completed collection point",
+                    review: "",
                     proofPhotoBase64: post.bottlePhotoBase64,
                     aiConfidence: post.aiConfidence,
                     materialBreakdown: post.materialBreakdown
@@ -1146,7 +1146,7 @@ private extension DataService {
             jobTitle: job.title,
             bottleCount: bottleCount,
             earnings: collectorPayout(for: job),
-            review: aiVerified ? "AI verified pickup completed smoothly." : "Pickup completed successfully.",
+            review: "",
             date: Date(),
             proofPhotoBase64: proofPhotoBase64,
             aiConfidence: aiConfidence,

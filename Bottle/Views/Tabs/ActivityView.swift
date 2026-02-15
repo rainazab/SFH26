@@ -33,6 +33,47 @@ struct ActivityView: View {
         let cal = Calendar.current
         return dataService.completedJobs.filter { cal.isDateInToday($0.date) }.count
     }
+
+    private var isCollector: Bool {
+        dataService.currentUser?.type == .collector
+    }
+
+    private var displayedCompletedPickups: [PickupHistory] {
+        switch selectedFilter {
+        case .all, .completed:
+            return dataService.completedJobs
+        case .pending, .upcoming:
+            return []
+        }
+    }
+
+    private var displayedCollectorClaimedJobs: [BottleJob] {
+        let claimed = dataService.myClaimedJobs
+        switch selectedFilter {
+        case .all:
+            return claimed
+        case .completed:
+            return []
+        case .pending:
+            return claimed.filter { $0.status == .claimed || $0.status == .inProgress || $0.status == .in_progress || $0.status == .arrived }
+        case .upcoming:
+            return claimed.filter { $0.status == .matched }
+        }
+    }
+
+    private var displayedHostPosts: [BottleJob] {
+        let mine = dataService.myPostedJobs.sorted { $0.createdAt > $1.createdAt }
+        switch selectedFilter {
+        case .all:
+            return mine.filter { $0.status != .completed && $0.status != .cancelled && $0.status != .expired }
+        case .completed:
+            return []
+        case .pending:
+            return mine.filter { $0.status == .claimed || $0.status == .matched || $0.status == .inProgress || $0.status == .in_progress || $0.status == .arrived }
+        case .upcoming:
+            return mine.filter { $0.status == .available || $0.status == .posted }
+        }
+    }
     
     var body: some View {
         NavigationView {
@@ -88,20 +129,37 @@ struct ActivityView: View {
                 // Activity List
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        if !dataService.myClaimedJobs.isEmpty {
-                            ForEach(dataService.myClaimedJobs) { job in
-                                ClaimedJobCard(job: job) {
-                                    selectedClaimedJob = job
-                                    showingCompletePickup = true
+                        if isCollector {
+                            if !displayedCollectorClaimedJobs.isEmpty {
+                                ForEach(displayedCollectorClaimedJobs) { job in
+                                    ClaimedJobCard(job: job) {
+                                        selectedClaimedJob = job
+                                        showingCompletePickup = true
+                                    }
+                                    Divider().padding(.leading, 80)
                                 }
-                                Divider().padding(.leading, 80)
+                            }
+                        } else {
+                            if !displayedHostPosts.isEmpty {
+                                ForEach(displayedHostPosts) { post in
+                                    HostPostStatusCard(post: post)
+                                    Divider().padding(.leading, 80)
+                                }
                             }
                         }
-                        
-                        ForEach(dataService.completedJobs) { pickup in
+
+                        ForEach(displayedCompletedPickups) { pickup in
                             ActivityCard(pickup: pickup)
                             Divider()
                                 .padding(.leading, 80)
+                        }
+
+                        if displayedCollectorClaimedJobs.isEmpty && displayedHostPosts.isEmpty && displayedCompletedPickups.isEmpty {
+                            Text("No items in this filter yet.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .padding(.top, 40)
+                                .padding(.horizontal)
                         }
                     }
                 }
@@ -112,6 +170,79 @@ struct ActivityView: View {
                     CompletePickupView(job: job)
                 }
             }
+        }
+    }
+}
+
+struct HostPostStatusCard: View {
+    let post: BottleJob
+
+    var body: some View {
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(statusColor.opacity(0.15))
+                    .frame(width: 50, height: 50)
+                Image(systemName: statusIcon)
+                    .font(.title3)
+                    .foregroundColor(statusColor)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(post.title)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                Text("\(post.bottleCount) bottles • \(post.address)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+                Text(statusText)
+                    .font(.caption)
+                    .foregroundColor(statusColor)
+            }
+
+            Spacer()
+        }
+        .padding()
+        .background(Color(.systemBackground))
+    }
+
+    private var statusText: String {
+        switch post.status {
+        case .available, .posted:
+            return "Open and waiting for collectors"
+        case .matched, .claimed:
+            return "Claimed by a collector"
+        case .inProgress, .in_progress, .arrived:
+            return "Pickup in progress"
+        case .completed:
+            return "Completed"
+        case .cancelled:
+            return "Cancelled"
+        case .expired:
+            return "Expired"
+        case .disputed:
+            return "Disputed"
+        }
+    }
+
+    private var statusIcon: String {
+        switch post.status {
+        case .available, .posted: return "clock.badge.checkmark.fill"
+        case .matched, .claimed: return "person.crop.circle.badge.checkmark"
+        case .inProgress, .in_progress, .arrived: return "arrow.triangle.2.circlepath.circle.fill"
+        case .completed: return "checkmark.circle.fill"
+        case .cancelled, .expired, .disputed: return "exclamationmark.triangle.fill"
+        }
+    }
+
+    private var statusColor: Color {
+        switch post.status {
+        case .available, .posted: return .brandBlueLight
+        case .matched, .claimed: return .brandGreen
+        case .inProgress, .in_progress, .arrived: return .orange
+        case .completed: return .brandGreenDark
+        case .cancelled, .expired, .disputed: return .red
         }
     }
 }
@@ -221,7 +352,7 @@ struct ActivityCard: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                 
-                if !pickup.review.isEmpty {
+                if shouldShowReview(pickup.review) {
                     Text("\"\(pickup.review)\"")
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -274,6 +405,17 @@ struct ActivityCard: View {
         guard let base64 = pickup.proofPhotoBase64,
               let data = Data(base64Encoded: base64) else { return nil }
         return UIImage(data: data)
+    }
+
+    private func shouldShowReview(_ review: String) -> Bool {
+        let trimmed = review.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let systemGeneratedReviews: Set<String> = [
+            "Pickup completed successfully.",
+            "AI verified pickup completed smoothly.",
+            "Completed collection point"
+        ]
+        return !systemGeneratedReviews.contains(trimmed)
     }
 }
 

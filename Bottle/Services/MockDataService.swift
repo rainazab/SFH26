@@ -170,7 +170,6 @@ final class MockDataService: ObservableObject {
             allUsers[userIdx] = currentUser
         }
         
-        let review = aiVerified ? "AI verified pickup completed smoothly." : "Pickup completed successfully."
         let history = PickupHistory(
             id: UUID().uuidString,
             jobTitle: job.title,
@@ -178,7 +177,7 @@ final class MockDataService: ObservableObject {
             bottleCount: bottleCount,
             earnings: job.payout,
             rating: 5.0,
-            review: review
+            review: ""
         )
         completedJobs.insert(history, at: 0)
         
