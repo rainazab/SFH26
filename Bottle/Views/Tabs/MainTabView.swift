@@ -94,6 +94,7 @@ struct DonorTabView: View {
 
 struct CollectorTabView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var dataService: DataService
     @State private var selectedTab = 0
     let locationService: LocationService
 
@@ -117,10 +118,17 @@ struct CollectorTabView: View {
         .onChange(of: selectedTab) { _, _ in
             HapticManager.shared.selection()
         }
+        .onReceive(NotificationCenter.default.publisher(for: AppNotificationService.openCollectionPointNotification)) { notification in
+            selectedTab = 0
+            if let postId = notification.userInfo?[AppNotificationService.postIDUserInfoKey] as? String {
+                dataService.queueCollectionPointOpen(postId: postId)
+            }
+        }
     }
 }
 
 struct CollectorJobsView: View {
+    @EnvironmentObject var dataService: DataService
     @EnvironmentObject var locationService: LocationService
     @State private var mode: JobsMode = .map
     @AppStorage("bottlr.firstRunTip.collector") private var showCollectorTip = true
@@ -173,6 +181,17 @@ struct CollectorJobsView: View {
             } else {
                 JobListView()
                     .environmentObject(locationService)
+            }
+        }
+        .onAppear {
+            if let pending = AppNotificationService.shared.consumePendingCollectionPointRoute() {
+                dataService.queueCollectionPointOpen(postId: pending)
+                mode = .map
+            }
+        }
+        .onChange(of: dataService.pendingCollectionPointID) { _, newValue in
+            if newValue != nil {
+                mode = .map
             }
         }
     }

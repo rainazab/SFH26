@@ -15,6 +15,7 @@ final class AppNotificationService {
     private enum Keys {
         static let newPostAlertsEnabled = "bottlr.notifications.newPosts.enabled"
         static let pickupAlertsEnabled = "bottlr.notifications.pickups.enabled"
+        static let pendingCollectionPointRoute = "bottlr.notifications.pendingCollectionPointRoute"
     }
 
     private var didRequestPermission = false
@@ -68,11 +69,18 @@ final class AppNotificationService {
     }
 
     func routeToCollectionPoint(postId: String) {
+        UserDefaults.standard.set(postId, forKey: Keys.pendingCollectionPointRoute)
         NotificationCenter.default.post(
             name: Self.openCollectionPointNotification,
             object: nil,
             userInfo: [Self.postIDUserInfoKey: postId]
         )
+    }
+
+    func consumePendingCollectionPointRoute() -> String? {
+        guard let postId = UserDefaults.standard.string(forKey: Keys.pendingCollectionPointRoute) else { return nil }
+        UserDefaults.standard.removeObject(forKey: Keys.pendingCollectionPointRoute)
+        return postId
     }
 
     private func schedule(idPrefix: String, title: String, body: String, postId: String?) {

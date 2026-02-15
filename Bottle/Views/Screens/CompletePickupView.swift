@@ -28,6 +28,7 @@ struct CompletePickupView: View {
     @State private var aiIsRecyclable: Bool?
     @State private var aiMaterials: MaterialBreakdown?
     @State private var isCountingWithAI = false
+    @State private var aiTask: Task<Void, Never>?
     @State private var showImpactBurst = false
     @State private var confirmedLowConfidence = false
     
@@ -190,7 +191,7 @@ struct CompletePickupView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Verify Pickup")
+            .navigationTitle("Complete Collection")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -215,6 +216,15 @@ struct CompletePickupView: View {
                 aiIsRecyclable = nil
                 aiMaterials = nil
                 confirmedLowConfidence = false
+                if AppConfig.aiVerificationEnabled, let image = newValue {
+                    aiTask?.cancel()
+                    aiTask = Task {
+                        await runAICount(image)
+                    }
+                }
+            }
+            .onDisappear {
+                aiTask?.cancel()
             }
         }
         .overlay(alignment: .center) {
@@ -264,6 +274,8 @@ struct CompletePickupView: View {
             if countResult.confidence >= 60 {
                 bottleCount = "\(countResult.count)"
             }
+        } catch is CancellationError {
+            return
         } catch {
             errorMessage = "AI couldn't analyze this photo right now. You can still enter the count manually."
             showError = true

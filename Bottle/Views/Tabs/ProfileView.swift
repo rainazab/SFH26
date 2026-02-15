@@ -182,10 +182,6 @@ struct ProfileView: View {
                             ProfileMenuRow(icon: "bell.fill", title: "Notifications", color: Color(hex: "FF9800"))
                         }
                         Divider().padding(.leading, 60)
-                        ProfileMenuItem(icon: "creditcard.fill", title: "Payment Methods", color: .brandBlueLight)
-                        Divider().padding(.leading, 60)
-                        ProfileMenuItem(icon: "chart.bar.fill", title: "Statistics", color: .tierCommercial)
-                        Divider().padding(.leading, 60)
                         ProfileMenuItem(icon: "gearshape.fill", title: "Settings", color: .gray)
                     }
                     .background(Color(.systemBackground))

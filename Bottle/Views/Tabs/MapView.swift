@@ -34,7 +34,9 @@ struct MapView: View {
     }
     
     var nearestHighValueJob: BottleJob? {
-        jobs.filter({ $0.estimatedValue > 30 }).min(by: { ($0.distance ?? 0) < ($1.distance ?? 0) })
+        jobs
+            .filter { $0.estimatedValue > 30 && $0.status == .available && $0.distance != nil }
+            .min(by: { ($0.distance ?? .greatestFiniteMagnitude) < ($1.distance ?? .greatestFiniteMagnitude) })
     }
 
     private var toastTitle: String {
@@ -164,20 +166,19 @@ struct MapView: View {
                     }
                     
                     // Urgency alert for nearby high-value job
-                    if let highValueJob = nearestHighValueJob {
+                    if let highValueJob = nearestHighValueJob, let distance = highValueJob.distance {
                         Divider()
                         
                         HStack(spacing: 8) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundColor(.accentOrange)
-                            Text("Collection point \(String(format: "%.1f", highValueJob.distance ?? 0)) mi away!")
+                            Text("Collection point \(String(format: "%.1f", distance)) mi away!")
                                 .font(.caption)
                                 .fontWeight(.semibold)
                             Spacer()
                             Button(action: {
                                 HapticManager.shared.impact(.medium)
-                                selectedJob = highValueJob
-                                showingJobDetail = true
+                                openCollectionPoint(highValueJob)
                             }) {
                                 Text("GO")
                                     .font(.caption)
@@ -294,8 +295,8 @@ struct MapView: View {
                 }
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: AppNotificationService.openCollectionPointNotification)) { notification in
-            guard let postId = notification.userInfo?[AppNotificationService.postIDUserInfoKey] as? String else { return }
+        .onChange(of: dataService.pendingCollectionPointID) { _, postId in
+            guard let postId else { return }
             if let match = jobs.first(where: { $0.id == postId }) {
                 selectedJob = match
                 showingJobDetail = true
@@ -305,7 +306,12 @@ struct MapView: View {
                         span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
                     )
                 )
+                dataService.clearPendingCollectionPointOpen(postId)
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AppNotificationService.openCollectionPointNotification)) { notification in
+            guard let postId = notification.userInfo?[AppNotificationService.postIDUserInfoKey] as? String else { return }
+            dataService.queueCollectionPointOpen(postId: postId)
         }
     }
     
@@ -338,6 +344,26 @@ struct MapView: View {
         let padded = rect.insetBy(dx: -rect.size.width * 0.35 - 800, dy: -rect.size.height * 0.35 - 800)
         position = .rect(padded)
         hasAutoFramed = true
+    }
+
+    private func openCollectionPoint(_ job: BottleJob) {
+        selectedJob = job
+        position = .region(
+            MKCoordinateRegion(
+                center: job.coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+            )
+        )
+        // Re-trigger sheet presentation even if already open.
+        if showingJobDetail {
+            showingJobDetail = false
+            DispatchQueue.main.async {
+                selectedJob = job
+                showingJobDetail = true
+            }
+        } else {
+            showingJobDetail = true
+        }
     }
 }
 

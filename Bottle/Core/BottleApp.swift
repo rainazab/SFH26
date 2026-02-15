@@ -110,6 +110,17 @@ struct BottleApp: App {
                 }
             }
             .environmentObject(dataService)
+            .onAppear {
+                dataService.syncAuthenticatedUser(authService.currentUser)
+            }
+            .onChange(of: authService.currentUser?.id) { _, _ in
+                dataService.syncAuthenticatedUser(authService.currentUser)
+            }
+            .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
+                if !isAuthenticated {
+                    dataService.syncAuthenticatedUser(nil)
+                }
+            }
         }
     }
 }

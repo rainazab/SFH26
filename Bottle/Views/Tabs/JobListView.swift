@@ -240,12 +240,17 @@ struct JobListView: View {
             } message: {
                 Text(claimErrorMessage)
             }
-            .onReceive(NotificationCenter.default.publisher(for: AppNotificationService.openCollectionPointNotification)) { notification in
-                guard let postId = notification.userInfo?[AppNotificationService.postIDUserInfoKey] as? String else { return }
+            .onChange(of: dataService.pendingCollectionPointID) { _, postId in
+                guard let postId else { return }
                 if let match = filteredJobs.first(where: { $0.id == postId }) ?? baseJobs.first(where: { $0.id == postId }) {
                     selectedJob = match
                     showingJobDetail = true
+                    dataService.clearPendingCollectionPointOpen(postId)
                 }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: AppNotificationService.openCollectionPointNotification)) { notification in
+                guard let postId = notification.userInfo?[AppNotificationService.postIDUserInfoKey] as? String else { return }
+                dataService.queueCollectionPointOpen(postId: postId)
             }
         }
     }

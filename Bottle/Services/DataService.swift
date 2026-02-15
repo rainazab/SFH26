@@ -39,6 +39,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
     )
     @Published var latestNearbyPostID: String?
     @Published var latestNearbyPostCount: Int = 0
+    @Published var pendingCollectionPointID: String?
     @Published var backendStatus: String = "local"
     @Published var lastSyncError: String?
 
@@ -60,6 +61,7 @@ final class DataService: ObservableObject, DataServiceProtocol {
     private let notifications = AppNotificationService.shared
     private var cancellables: Set<AnyCancellable> = []
     private var userCoordinate: CLLocationCoordinate2D?
+    private var allPostsCache: [BottleJob] = []
     private var isFirestoreEnabled = false
     private var didProcessInitialJobsSnapshot = false
     private var hostFeedbackSubmittedPostIDs: Set<String> = []
@@ -87,6 +89,8 @@ final class DataService: ObservableObject, DataServiceProtocol {
         appState.$currentUser
             .sink { [weak self] user in
                 guard let self else { return }
+                // In Firestore mode, AuthService is the source of truth for identity.
+                if self.isFirestoreEnabled { return }
                 self.currentUser = user
                 if self.isFirestoreEnabled {
                     self.refreshDerivedCollections()
@@ -96,6 +100,35 @@ final class DataService: ObservableObject, DataServiceProtocol {
                 #endif
             }
             .store(in: &cancellables)
+    }
+
+    func syncAuthenticatedUser(_ user: UserProfile?) {
+        currentUser = user
+        if let user {
+            MockDataService.shared.syncAuthenticatedUser(user)
+            if isFirestoreEnabled {
+                refreshDerivedCollections()
+                #if canImport(FirebaseFirestore)
+                observePickups()
+                #endif
+            }
+        } else {
+            myClaimedJobs = []
+            myPostedJobs = []
+            completedJobs = []
+            allPostsCache = []
+            pendingCollectionPointID = nil
+        }
+    }
+
+    func queueCollectionPointOpen(postId: String) {
+        pendingCollectionPointID = postId
+    }
+
+    func clearPendingCollectionPointOpen(_ postId: String) {
+        if pendingCollectionPointID == postId {
+            pendingCollectionPointID = nil
+        }
     }
 
     private func configureBackend() {
@@ -164,8 +197,14 @@ final class DataService: ObservableObject, DataServiceProtocol {
 
     private func refreshDerivedCollections() {
         guard let user = currentUser else { return }
-        myPostedJobs = availableJobs.filter { $0.donorId == user.id }
-        myClaimedJobs = availableJobs.filter { $0.claimedBy == user.id && $0.status == .claimed }
+        let sourcePosts = isFirestoreEnabled ? allPostsCache : availableJobs
+        myPostedJobs = sourcePosts
+            .filter { $0.donorId == user.id }
+            .sorted { $0.createdAt > $1.createdAt }
+        myClaimedJobs = sourcePosts.filter {
+            $0.claimedBy == user.id &&
+            ($0.status == .claimed || $0.status == .inProgress || $0.status == .arrived || $0.status == .matched)
+        }
         recalculateImpactFromHistory()
         rebuildActivityTimeline()
     }
@@ -735,6 +774,7 @@ private extension DataService {
                 if let userCoordinate = self.userCoordinate {
                     parsed = self.withDistances(parsed, from: userCoordinate)
                 }
+                self.allPostsCache = parsed
                 let previousJobs = self.availableJobs
                 let filtered = parsed.filter {
                     $0.status != .completed &&
@@ -755,10 +795,15 @@ private extension DataService {
     }
 
     func observePickups() {
-        guard let userId = currentUser?.id else { return }
+        guard let user = currentUser else { return }
         pickupsListener?.remove()
-        pickupsListener = db.collection("pickups")
-            .whereField("collectorId", isEqualTo: userId)
+        let query: Query
+        if user.type == .donor {
+            query = db.collection("pickups").whereField("donorId", isEqualTo: user.id)
+        } else {
+            query = db.collection("pickups").whereField("collectorId", isEqualTo: user.id)
+        }
+        pickupsListener = query
             .addSnapshotListener { [weak self] snapshot, error in
                 Task { @MainActor in
                     guard let self else { return }
@@ -767,14 +812,38 @@ private extension DataService {
                         return
                     }
                     guard let docs = snapshot?.documents else { return }
-                    self.completedJobs = docs
+                    var history = docs
                         .compactMap(FirestorePickupRecord.init(document:))
                         .map(\.history)
                         .sorted { $0.date > $1.date }
+                    if user.type == .donor && history.isEmpty {
+                        history = self.fallbackHostCompletedHistory(from: self.allPostsCache, hostId: user.id)
+                    }
+                    self.completedJobs = history
                     self.recalculateImpactFromHistory()
                     self.lastSyncError = nil
                 }
             }
+    }
+
+    private func fallbackHostCompletedHistory(from posts: [BottleJob], hostId: String) -> [PickupHistory] {
+        posts
+            .filter { $0.donorId == hostId && $0.status == .completed }
+            .map { post in
+                PickupHistory(
+                    id: "completed-\(post.id)",
+                    jobTitle: post.title,
+                    date: post.expiresAt ?? post.createdAt,
+                    bottleCount: post.bottleCount,
+                    earnings: 0,
+                    rating: Double(post.collectorRatingByHost ?? 5),
+                    review: "Completed collection point",
+                    proofPhotoBase64: post.bottlePhotoBase64,
+                    aiConfidence: post.aiConfidence,
+                    materialBreakdown: post.materialBreakdown
+                )
+            }
+            .sorted { $0.date > $1.date }
     }
 
     func observeLeaderboard() {
@@ -884,6 +953,7 @@ private extension DataService {
             id: UUID().uuidString,
             jobId: job.id,
             collectorId: collectorId,
+            donorId: job.donorId,
             jobTitle: job.title,
             bottleCount: bottleCount,
             earnings: collectorPayout(for: job),
@@ -1307,6 +1377,7 @@ private struct FirestorePickupRecord {
     let id: String
     let jobId: String
     let collectorId: String
+    let donorId: String?
     let jobTitle: String
     let bottleCount: Int
     let earnings: Double
@@ -1320,6 +1391,7 @@ private struct FirestorePickupRecord {
         id: String,
         jobId: String,
         collectorId: String,
+        donorId: String?,
         jobTitle: String,
         bottleCount: Int,
         earnings: Double,
@@ -1332,6 +1404,7 @@ private struct FirestorePickupRecord {
         self.id = id
         self.jobId = jobId
         self.collectorId = collectorId
+        self.donorId = donorId
         self.jobTitle = jobTitle
         self.bottleCount = bottleCount
         self.earnings = earnings
@@ -1365,6 +1438,7 @@ private struct FirestorePickupRecord {
             id: document.documentID,
             jobId: jobId,
             collectorId: collectorId,
+            donorId: data["donorId"] as? String,
             jobTitle: jobTitle,
             bottleCount: bottleCount,
             earnings: earnings,
@@ -1395,6 +1469,7 @@ private struct FirestorePickupRecord {
         [
             "jobId": jobId,
             "collectorId": collectorId,
+            "donorId": donorId as Any,
             "jobTitle": jobTitle,
             "bottleCount": bottleCount,
             "earnings": earnings,

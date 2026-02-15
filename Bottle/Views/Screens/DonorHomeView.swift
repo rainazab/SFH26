@@ -62,13 +62,16 @@ struct DonorHomeView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
 
-                        if let upcoming = dataService.myPostedJobs.first {
+                        if let upcoming = activeHostedPost {
                             Text(upcoming.address)
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                             Text("\(upcoming.bottleCount) bottles • \(upcoming.availableTime)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
+                            Text(stageLabel(for: upcoming.status))
+                                .font(.caption2)
+                                .foregroundColor(.brandBlueLight)
                         } else {
                             Text("No active pickup yet.")
                                 .font(.subheadline)
@@ -149,6 +152,24 @@ struct DonorHomeView: View {
 
     private var pendingClaimedPosts: [BottleJob] {
         dataService.myPostedJobs.filter { $0.status == .claimed && $0.collectorRatingByHost == nil }
+    }
+
+    private var activeHostedPost: BottleJob? {
+        dataService.myPostedJobs.first {
+            $0.status != .completed && $0.status != .cancelled && $0.status != .expired
+        }
+    }
+
+    private func stageLabel(for status: JobStatus) -> String {
+        switch status {
+        case .available, .posted: return "Stage: posted"
+        case .claimed, .matched: return "Stage: claimed"
+        case .inProgress, .in_progress, .arrived: return "Stage: in progress"
+        case .completed: return "Stage: completed"
+        case .cancelled: return "Stage: cancelled"
+        case .expired: return "Stage: expired"
+        case .disputed: return "Stage: disputed"
+        }
     }
 }
 
