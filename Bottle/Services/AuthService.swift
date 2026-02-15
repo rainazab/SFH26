@@ -174,13 +174,12 @@ class AuthService: ObservableObject {
         }
     }
 
-    func updateProfilePhoto(_ image: UIImage) {
-        Task {
-            do {
-                try await uploadProfilePhoto(image)
-            } catch {
-                errorMessage = error.localizedDescription
-            }
+    func updateProfilePhoto(_ image: UIImage) async throws {
+        do {
+            try await uploadProfilePhoto(image)
+        } catch {
+            errorMessage = error.localizedDescription
+            throw error
         }
     }
 

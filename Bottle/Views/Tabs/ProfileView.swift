@@ -15,6 +15,8 @@ struct ProfileView: View {
     @EnvironmentObject var dataService: DataService
     @State private var showDemoPanel = false
     @State private var selectedProfilePhoto: PhotosPickerItem?
+    @State private var pendingProfileImage: UIImage?
+    @State private var isUploadingProfilePhoto = false
     
     private var profile: UserProfile {
         dataService.currentUser ?? UserProfile.mockCollector
@@ -32,8 +34,8 @@ struct ProfileView: View {
                                 .fill(Color.brandGreen.opacity(0.2))
                                 .frame(width: 100, height: 100)
 
-                            if let profileImage = profileImage {
-                                Image(uiImage: profileImage)
+                            if let previewImage = pendingProfileImage ?? profileImage {
+                                Image(uiImage: previewImage)
                                     .resizable()
                                     .scaledToFill()
                                     .frame(width: 100, height: 100)
@@ -50,9 +52,17 @@ struct ProfileView: View {
                         }
 
                         PhotosPicker(selection: $selectedProfilePhoto, matching: .images) {
-                            Label("Change profile photo", systemImage: "camera.fill")
-                                .font(.caption)
-                                .foregroundColor(.brandGreen)
+                            HStack(spacing: 6) {
+                                if isUploadingProfilePhoto {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "camera.fill")
+                                }
+                                Text(isUploadingProfilePhoto ? "Updating photo..." : "Change profile photo")
+                            }
+                            .font(.caption)
+                            .foregroundColor(.brandGreen)
                         }
                         .accessibilityLabel("Change profile photo")
                         
@@ -284,11 +294,24 @@ struct ProfileView: View {
             }
             .onChange(of: selectedProfilePhoto) { _, newValue in
                 Task {
-                    if let data = try? await newValue?.loadTransferable(type: Data.self),
+                    guard let newValue else { return }
+                    if let data = try? await newValue.loadTransferable(type: Data.self),
                        let image = UIImage(data: data) {
-                        authService.updateProfilePhoto(image)
+                        pendingProfileImage = image
+                        isUploadingProfilePhoto = true
+                        do {
+                            try await authService.updateProfilePhoto(image)
+                        } catch {
+                            isUploadingProfilePhoto = false
+                        }
+                    } else {
+                        authService.errorMessage = "Couldn't load that photo. Please try a different image."
                     }
                 }
+            }
+            .onChange(of: profile.profilePhotoUrl) { _, _ in
+                pendingProfileImage = nil
+                isUploadingProfilePhoto = false
             }
         }
     }
