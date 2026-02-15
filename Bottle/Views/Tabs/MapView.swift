@@ -11,6 +11,7 @@ import MapKit
 struct MapView: View {
     @EnvironmentObject var locationService: LocationService
     @EnvironmentObject var dataService: DataService
+    var onShowList: (() -> Void)? = nil
     @State private var position: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
@@ -92,23 +93,32 @@ struct MapView: View {
             // Top Header
             VStack {
                 HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Nearby Posts")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        Text("\(jobs.count) posts nearby")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                    Button {
+                        onShowList?()
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Nearby Posts")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                            Text("\(jobs.count) posts nearby")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("View nearby posts in list")
                     Spacer()
                     
-                    // Filter Button
-                    Button(action: {}) {
-                        Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                    // List Button
+                    Button {
+                        onShowList?()
+                    } label: {
+                        Image(systemName: "list.bullet")
                             .font(.title2)
                             .foregroundColor(Color.brandGreen)
                     }
-                    .accessibilityLabel("Filter posts")
+                    .accessibilityLabel("Open list view")
                 }
                 .padding()
                 .background(.ultraThinMaterial)

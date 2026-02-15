@@ -176,7 +176,9 @@ struct CollectorJobsView: View {
             .padding(.top, 8)
 
             if mode == .map {
-                MapView()
+                MapView(onShowList: {
+                    mode = .list
+                })
                     .environmentObject(locationService)
             } else {
                 JobListView()
