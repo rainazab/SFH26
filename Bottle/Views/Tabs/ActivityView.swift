@@ -10,14 +10,12 @@ import UIKit
 
 struct ActivityView: View {
     @EnvironmentObject var dataService: DataService
-    @State private var selectedFilter: ActivityFilter = .all
+    @State private var selectedFilter: ActivityFilter = .pending
     @State private var selectedClaimedJob: BottleJob?
     
     enum ActivityFilter: String, CaseIterable {
-        case all = "All"
         case completed = "Completed"
         case pending = "Pending"
-        case upcoming = "Upcoming"
     }
 
     private var totalCompleted: Int {
@@ -39,9 +37,9 @@ struct ActivityView: View {
 
     private var displayedCompletedPickups: [PickupHistory] {
         switch selectedFilter {
-        case .all, .completed:
+        case .completed:
             return dataService.completedJobs
-        case .pending, .upcoming:
+        case .pending:
             return []
         }
     }
@@ -49,28 +47,28 @@ struct ActivityView: View {
     private var displayedCollectorClaimedJobs: [BottleJob] {
         let claimed = dataService.myClaimedJobs
         switch selectedFilter {
-        case .all:
-            return claimed
         case .completed:
             return []
         case .pending:
             return claimed.filter { $0.status == .claimed || $0.status == .inProgress || $0.status == .in_progress || $0.status == .arrived }
-        case .upcoming:
-            return claimed.filter { $0.status == .matched }
         }
     }
 
     private var displayedHostPosts: [BottleJob] {
         let mine = dataService.myPostedJobs.sorted { $0.createdAt > $1.createdAt }
         switch selectedFilter {
-        case .all:
-            return mine.filter { $0.status != .completed && $0.status != .cancelled && $0.status != .expired }
         case .completed:
             return []
         case .pending:
-            return mine.filter { $0.status == .claimed || $0.status == .matched || $0.status == .inProgress || $0.status == .in_progress || $0.status == .arrived }
-        case .upcoming:
-            return mine.filter { $0.status == .available || $0.status == .posted }
+            return mine.filter {
+                $0.status == .available ||
+                $0.status == .posted ||
+                $0.status == .claimed ||
+                $0.status == .matched ||
+                $0.status == .inProgress ||
+                $0.status == .in_progress ||
+                $0.status == .arrived
+            }
         }
     }
     
