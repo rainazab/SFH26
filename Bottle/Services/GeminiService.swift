@@ -124,7 +124,7 @@ class GeminiService {
             if httpResponse.statusCode == 429 {
                 throw GeminiError.rateLimitExceeded
             }
-            throw GeminiError.invalidResponse
+            throw mapServiceError(statusCode: httpResponse.statusCode, data: data)
         }
         
         // Parse Gemini response
@@ -138,13 +138,17 @@ class GeminiService {
             .replacingOccurrences(of: "```json", with: "")
             .replacingOccurrences(of: "```", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        guard let jsonData = cleanText.data(using: .utf8) else {
+
+        let jsonText = extractJSONObject(from: cleanText)
+        guard let jsonData = jsonText.data(using: .utf8) else {
             throw GeminiError.invalidResponse
         }
-        
-        let result = try JSONDecoder().decode(BottleCountResult.self, from: jsonData)
-        return result
+
+        do {
+            return try JSONDecoder().decode(BottleCountResult.self, from: jsonData)
+        } catch {
+            throw GeminiError.serviceError("AI returned an unexpected format. Try another photo.")
+        }
     }
 
     private func withRetry<T>(maxAttempts: Int, operation: () async throws -> T) async throws -> T {
@@ -162,6 +166,48 @@ class GeminiService {
             }
         }
         throw lastError ?? GeminiError.invalidResponse
+    }
+
+    private func mapServiceError(statusCode: Int, data: Data) -> GeminiError {
+        let message = googleErrorMessage(from: data)
+        switch statusCode {
+        case 400:
+            if message.localizedCaseInsensitiveContains("api key not valid") {
+                return .serviceError("Gemini API key is invalid for this request.")
+            }
+            return .serviceError("Gemini rejected the request: \(message)")
+        case 401, 403:
+            return .serviceError("Gemini access denied: \(message)")
+        case 404:
+            return .serviceError("Gemini model endpoint not found.")
+        default:
+            return .serviceError("Gemini request failed (\(statusCode)): \(message)")
+        }
+    }
+
+    private func googleErrorMessage(from data: Data) -> String {
+        if let payload = try? JSONDecoder().decode(GeminiErrorEnvelope.self, from: data),
+           let message = payload.error.message,
+           !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return message
+        }
+        if let fallback = String(data: data, encoding: .utf8),
+           !fallback.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return fallback
+        }
+        return "Unknown service error."
+    }
+
+    private func extractJSONObject(from text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.first == "{", trimmed.last == "}" {
+            return trimmed
+        }
+        guard let start = trimmed.firstIndex(of: "{"),
+              let end = trimmed.lastIndex(of: "}") else {
+            return trimmed
+        }
+        return String(trimmed[start...end])
     }
     
     // MARK: - Verification Feature
@@ -302,6 +348,16 @@ class GeminiService {
         let numbers = text.components(separatedBy: CharacterSet.decimalDigits.inverted).compactMap { Int($0) }
         return numbers.first ?? 0
     }
+}
+
+private struct GeminiErrorEnvelope: Decodable {
+    struct APIError: Decodable {
+        let code: Int?
+        let message: String?
+        let status: String?
+    }
+
+    let error: APIError
 }
 
 // MARK: - Response Models

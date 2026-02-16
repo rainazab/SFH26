@@ -78,6 +78,7 @@ enum GeminiError: LocalizedError {
     case invalidResponse
     case rateLimitExceeded
     case networkError
+    case serviceError(String)
 }
 
 extension GeminiError {
@@ -93,6 +94,8 @@ extension GeminiError {
             return "Too many AI requests. Wait 1 minute or enter manually."
         case .networkError:
             return "Network error. Check connection and try again."
+        case .serviceError(let message):
+            return message
         }
     }
 
